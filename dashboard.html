@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AjArtivo Admin Dashboard</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="dashboard">
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>AjArtivo</strong>
+        <span>Design Upload Admin</span>
+      </div>
+      <nav>
+        <ul class="menu">
+          <li><a data-nav="dashboard" href="dashboard.html">Dashboard</a></li>
+          <li><a data-nav="upload" href="upload.html">Upload Designs</a></li>
+          <li><a data-nav="users" href="users.html">Users Access</a></li>
+          <li><a data-nav="payments" href="payments.html">Payments</a></li>
+        </ul>
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="btn btn-outline" data-action="logout">Logout</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="panel hero">
+        <div>
+          <h1>AjArtivo Website Control Center</h1>
+          <p>Dashboard se aapko upload, users, aur payments ka complete access milega.</p>
+        </div>
+        <div><span class="badge">Admin Panel Live</span></div>
+      </header>
+
+      <section class="stats" id="statsRow"></section>
+
+      <section class="grid-2">
+        <article class="panel">
+          <div class="section-head">
+            <h2>Recent Uploads</h2>
+            <span>Last 5 designs</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="recentUploads"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <h2>Quick Access</h2>
+          </div>
+          <div class="quick-links">
+            <a class="quick-link-btn quick-upload" href="upload.html">
+              <strong>Upload New Design</strong>
+              <span>Publish design to Firestore now</span>
+            </a>
+            <a class="quick-link-btn quick-users" href="users.html">
+              <strong>Manage User Access</strong>
+              <span>Roles, status and admin control</span>
+            </a>
+            <a class="quick-link-btn quick-payments" href="payments.html">
+              <strong>Check Payments</strong>
+              <span>Track paid, pending and failed</span>
+            </a>
+          </div>
+          <p class="muted" style="margin-top: 12px;">Admin: <span id="adminName">admin</span></p>
+        </article>
+      </section>
+
+      <footer class="footer">AjArtivo Admin Panel <span data-year></span></footer>
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script type="module" src="js/firebase-config.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="utils/auth-check.js"></script>
+  <script src="js/data-store.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

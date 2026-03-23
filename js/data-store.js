@@ -21,20 +21,27 @@
     return prefix + "_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
   }
 
+  function normalizeDesign(item) {
+    return {
+      ...item,
+      price: Number(item.price || item.Price || 0),
+      downloadCount: Number(item.downloadCount || 0)
+    };
+  }
+
+  function normalizePayment(item) {
+    return {
+      ...item,
+      amount: Number(item.amount || 0),
+      quantity: Math.max(1, Number(item.quantity || 1))
+    };
+  }
+
   function seed() {
     if (read(KEYS.designs).length === 0) {
-      write(KEYS.designs, [
-        {
-          id: uid("dsn"),
-          name: "Wedding Flex Banner",
-          category: "PSD",
-          price: 499,
-          description: "Editable wedding template",
-          previewUrl: "",
-          downloadUrl: "",
-          createdAt: new Date().toISOString()
-        }
-      ]);
+      write(KEYS.designs, []);
+    } else {
+      write(KEYS.designs, read(KEYS.designs).map(normalizeDesign));
     }
 
     if (read(KEYS.users).length === 0) {
@@ -51,51 +58,61 @@
     }
 
     if (read(KEYS.payments).length === 0) {
-      write(KEYS.payments, [
-        {
-          id: uid("pay"),
-          payer: "Starter Customer",
-          amount: 499,
-          method: "UPI",
-          status: "Paid",
-          createdAt: new Date().toISOString()
-        }
-      ]);
+      write(KEYS.payments, []);
+    } else {
+      write(
+        KEYS.payments,
+        read(KEYS.payments)
+          .filter(function (item) {
+            return !(
+              item &&
+              item.payer === "Starter Customer" &&
+              Number(item.amount || 0) === 499 &&
+              item.status === "Paid"
+            );
+          })
+          .map(normalizePayment)
+      );
     }
   }
 
   const DataStore = {
     getDesigns: function () {
-      return read(KEYS.designs);
+      return read(KEYS.designs).map(normalizeDesign);
     },
     getDesignById: function (id) {
       return (
-        read(KEYS.designs).find(function (item) {
-          return item.id === id;
-        }) || null
+        read(KEYS.designs)
+          .map(normalizeDesign)
+          .find(function (item) {
+            return item.id === id;
+          }) || null
       );
     },
     addDesign: function (design) {
       const items = read(KEYS.designs);
-      items.unshift({
-        id: uid("dsn"),
-        createdAt: new Date().toISOString(),
-        ...design
-      });
+      items.unshift(
+        normalizeDesign({
+          id: uid("dsn"),
+          createdAt: new Date().toISOString(),
+          downloadCount: 0,
+          ...design
+        })
+      );
       write(KEYS.designs, items);
       return items;
     },
     updateDesign: function (id, patch) {
       const items = read(KEYS.designs).map(function (item) {
         if (item.id !== id) {
-          return item;
+          return normalizeDesign(item);
         }
 
-        return {
+        return normalizeDesign({
           ...item,
           ...patch,
           updatedAt: new Date().toISOString()
-        };
+        });
       });
 
       write(KEYS.designs, items);
@@ -105,6 +122,23 @@
       const items = read(KEYS.designs).filter(function (item) {
         return item.id !== id;
       });
+      write(KEYS.designs, items);
+      return items;
+    },
+    incrementDesignDownloads: function (id, quantity) {
+      const count = Math.max(1, Number(quantity || 1));
+      const items = read(KEYS.designs).map(function (item) {
+        if (item.id !== id) {
+          return normalizeDesign(item);
+        }
+
+        return normalizeDesign({
+          ...item,
+          downloadCount: Number(item.downloadCount || 0) + count,
+          updatedAt: new Date().toISOString()
+        });
+      });
+
       write(KEYS.designs, items);
       return items;
     },
@@ -129,15 +163,17 @@
       return items;
     },
     getPayments: function () {
-      return read(KEYS.payments);
+      return read(KEYS.payments).map(normalizePayment);
     },
     addPayment: function (payment) {
       const items = read(KEYS.payments);
-      items.unshift({
-        id: uid("pay"),
-        createdAt: new Date().toISOString(),
-        ...payment
-      });
+      items.unshift(
+        normalizePayment({
+          id: uid("pay"),
+          createdAt: new Date().toISOString(),
+          ...payment
+        })
+      );
       write(KEYS.payments, items);
       return items;
     }

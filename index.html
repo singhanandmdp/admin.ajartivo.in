@@ -3,56 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AjArtivo Admin Login</title>
-  <link rel="stylesheet" href="assets/style.css">
+  <title>AjArtivo Admin Upload Panel</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-<body data-page="login">
-  <main class="login-wrap premium-login">
-    <div class="login-bg" aria-hidden="true">
-      <span class="orb orb-one"></span>
-      <span class="orb orb-two"></span>
-      <span class="orb orb-three"></span>
-      <span class="grid-glow"></span>
-    </div>
-
-    <section class="login-showcase">
-      <p class="showcase-label">AJARTIVO CONTROL</p>
-      <h1>Premium Admin Console</h1>
-      <p>
-        Designs, users and payments ko ek modern dashboard se manage karo.
-        Fast actions, clean controls, and secure access.
+<body>
+  <main class="app-shell">
+    <section class="hero-card">
+      <p class="eyebrow">AJARTIVO ADMIN</p>
+      <h1>Product Image Upload Panel</h1>
+      <p class="hero-copy">
+        Unsigned Cloudinary upload ke through image upload karo, preview dekho,
+        aur Firestore ke <code>products</code> collection me entry save karo.
       </p>
     </section>
 
-    <section class="panel login-card premium-card" id="loginCard">
-      <div class="section-head">
-        <h2>Admin Access</h2>
-        <span class="login-chip">Secure Login</span>
+    <section class="panel-card">
+      <div class="panel-head">
+        <div>
+          <h2>Upload Product Image</h2>
+          <p>Secure frontend flow with public upload preset only.</p>
+        </div>
+        <span class="status-pill" id="statusPill">Ready</span>
       </div>
-      <p class="muted">Panel access ke liye admin credentials use karo.</p>
 
-      <form id="loginForm" class="form-grid login-form">
-        <div class="field full">
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="Enter admin email" required>
+      <form id="uploadForm" class="upload-form" novalidate>
+        <div class="field-group">
+          <label for="imageFile">Select Image File</label>
+          <input id="imageFile" name="imageFile" type="file" accept="image/*" required>
+          <small class="field-note">Supported image files only. Recommended max size 10 MB.</small>
         </div>
-        <div class="field full">
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" placeholder="Enter password" required>
+
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="uploadBtn">Upload Image</button>
+          <button type="submit" class="btn btn-secondary" id="saveBtn" disabled>Save to Firestore</button>
         </div>
-        <div class="field full row">
-          <button type="submit" class="btn btn-primary login-btn">Login to Dashboard</button>
+
+        <div class="field-group">
+          <label for="imageUrl">Image URL</label>
+          <input
+            id="imageUrl"
+            name="imageUrl"
+            type="url"
+            placeholder="Cloudinary secure_url will appear here"
+            readonly
+          >
         </div>
+
+        <div class="status-box" id="loadingIndicator" hidden>Uploading image, please wait...</div>
+        <div class="message-box" id="messageBox" hidden></div>
       </form>
+    </section>
 
-      <p id="loginError" class="login-note login-error" style="display:none;">Invalid credentials.</p>
-      <p class="login-note login-creds">Allowed admin email: <strong>anand2825@ajartivo.in</strong></p>
-      <p class="footer login-footer">AjArtivo Admin Panel <span data-year></span></p>
+    <section class="preview-card">
+      <div class="panel-head">
+        <div>
+          <h2>Preview</h2>
+          <p>Upload complete hone ke baad preview yahan dikhega.</p>
+        </div>
+      </div>
+
+      <div class="preview-frame" id="previewFrame">
+        <img id="previewImage" alt="Uploaded preview" hidden>
+        <div class="preview-placeholder" id="previewPlaceholder">
+          No image uploaded yet
+        </div>
+      </div>
     </section>
   </main>
 
-  <script src="js/app.js"></script>
-  <script type="module" src="js/firebase-config.js"></script>
-  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>

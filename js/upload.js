@@ -242,6 +242,7 @@
       category: String(form.category.value || "PSD").trim(),
       paymentMode: paymentMode,
       price: paymentMode === "free" ? 0 : Number(form.price.value || 0),
+      downloadCount: 0,
       downloadUrl: String(form.downloadUrl.value || "").trim(),
       previewUrl: previewUrl,
       extraImages: images,
@@ -275,6 +276,7 @@
           "<strong>" + escapeHtml(item.name) + "</strong>" +
           "<span class='muted'>" + escapeHtml(item.category) + " | " + priceText + "</span>" +
           "<span class='muted'>Images: " + totalImages + "</span>" +
+          "<span class='muted'>Downloads: " + Number(item.downloadCount || 0) + "</span>" +
           "<div class='row'>" +
           "<button type='button' class='btn btn-soft' data-edit-id='" + escapeHtml(item.id) + "'>Edit</button>" +
           "<button type='button' class='btn btn-outline btn-danger-outline' data-delete-id='" + escapeHtml(item.id) + "'>Remove</button>" +

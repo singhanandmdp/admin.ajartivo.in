@@ -113,6 +113,22 @@ function setLoadingState(button, isLoading) {
   button.textContent = isLoading ? "Logging in..." : "Login to Dashboard";
 }
 
+function bindPasswordToggle() {
+  const passwordInput = document.getElementById("password");
+  const toggleButton = document.getElementById("passwordToggle");
+
+  if (!passwordInput || !toggleButton) {
+    return;
+  }
+
+  toggleButton.addEventListener("click", function () {
+    const shouldShow = passwordInput.type === "password";
+    passwordInput.type = shouldShow ? "text" : "password";
+    toggleButton.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+    toggleButton.setAttribute("aria-label", shouldShow ? "Hide password" : "Show password");
+  });
+}
+
 function bindLoginForm() {
   const form = document.getElementById("loginForm");
   if (!form) {
@@ -194,5 +210,6 @@ window.AjartivoAuth = {
 document.addEventListener("DOMContentLoaded", function () {
   bindLogoutButtons();
   bindLoginForm();
+  bindPasswordToggle();
   handleLoginPageAuthState();
 });

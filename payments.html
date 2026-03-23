@@ -41,12 +41,22 @@
         </div>
         <form id="paymentForm" class="form-grid">
           <div class="field">
+            <label for="designId">Design</label>
+            <select id="designId" name="designId" required>
+              <option value="">Select design</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="payer">Payer</label>
             <input id="payer" name="payer" type="text" required>
           </div>
           <div class="field">
+            <label for="quantity">Downloads / Qty</label>
+            <input id="quantity" name="quantity" type="number" min="1" value="1" required>
+          </div>
+          <div class="field">
             <label for="amount">Amount (INR)</label>
-            <input id="amount" name="amount" type="number" min="0" required>
+            <input id="amount" name="amount" type="number" min="0" required readonly>
           </div>
           <div class="field">
             <label for="method">Method</label>
@@ -78,7 +88,9 @@
           <table>
             <thead>
               <tr>
+                <th>Design</th>
                 <th>Payer</th>
+                <th>Qty</th>
                 <th>Amount</th>
                 <th>Method</th>
                 <th>Status</th>

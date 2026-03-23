@@ -22,6 +22,30 @@
     });
   }
 
+  function injectMobileTopbar() {
+    if (document.body.dataset.page === "login") {
+      return;
+    }
+
+    const main = document.querySelector(".main");
+    if (!main || document.getElementById("mobileTopbar")) {
+      return;
+    }
+
+    const topbar = document.createElement("div");
+    topbar.className = "mobile-topbar panel";
+    topbar.id = "mobileTopbar";
+    topbar.innerHTML =
+      "<div class='mobile-topbar-head'><strong>AjArtivo Admin</strong><button type='button' class='btn btn-outline mobile-logout' data-action='logout'>Logout</button></div>" +
+      "<nav class='mobile-nav' aria-label='Mobile Navigation'>" +
+      "<a data-nav='dashboard' href='dashboard.html'>Dashboard</a>" +
+      "<a data-nav='upload' href='upload.html'>Upload</a>" +
+      "<a data-nav='users' href='users.html'>Users</a>" +
+      "<a data-nav='payments' href='payments.html'>Payments</a>" +
+      "</nav>";
+    main.insertBefore(topbar, main.firstChild);
+  }
+
   function setActiveMenu() {
     const page = document.body.dataset.page;
     const links = document.querySelectorAll("[data-nav]");
@@ -68,6 +92,7 @@
   };
 
   document.addEventListener("DOMContentLoaded", function () {
+    injectMobileTopbar();
     setActiveMenu();
     bindLogout();
     updateYear();

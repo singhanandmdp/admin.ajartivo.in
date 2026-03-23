@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
   if (document.body.dataset.page !== "payments") {
     return;
   }
@@ -6,6 +6,21 @@ document.addEventListener("DOMContentLoaded", function () {
   const form = document.getElementById("paymentForm");
   const table = document.getElementById("paymentsTable");
   const revenueBadge = document.getElementById("revenueBadge");
+  const designSelect = document.getElementById("designId");
+  const quantityInput = document.getElementById("quantity");
+  const amountInput = document.getElementById("amount");
+
+  async function getDesignsSafe() {
+    const fb = window.AjartivoFirebase || { connected: false };
+    if (fb.connected) {
+      try {
+        return await fb.getDesigns();
+      } catch (error) {
+        return window.DataStore.getDesigns();
+      }
+    }
+    return window.DataStore.getDesigns();
+  }
 
   function statusClass(status) {
     if (status === "Paid") {
@@ -17,11 +32,44 @@ document.addEventListener("DOMContentLoaded", function () {
     return "status-pill status-danger";
   }
 
-  function render() {
-    const payments = window.DataStore.getPayments();
+  function getSelectedDesign(designs) {
+    return (
+      designs.find(function (item) {
+        return item.id === designSelect.value;
+      }) || null
+    );
+  }
+
+  function updateAmount(designs) {
+    const selectedDesign = getSelectedDesign(designs);
+    const quantity = Math.max(1, Number(quantityInput.value || 1));
+    const unitPrice = Number(selectedDesign && selectedDesign.price ? selectedDesign.price : 0);
+    amountInput.value = String(unitPrice * quantity);
+  }
+
+  function populateDesigns(designs) {
+    if (designs.length === 0) {
+      designSelect.innerHTML = "<option value=''>No designs available</option>";
+      form.querySelector("button[type='submit']").disabled = true;
+      return;
+    }
+
+    designSelect.innerHTML =
+      "<option value=''>Select design</option>" +
+      designs
+        .map(function (item) {
+          const label = item.name + " (" + window.AdminApp.formatCurrency(item.price || 0) + ")";
+          return "<option value='" + item.id + "'>" + label + "</option>";
+        })
+        .join("");
+
+    form.querySelector("button[type='submit']").disabled = false;
+  }
+
+  function render(payments) {
     if (payments.length === 0) {
-      table.innerHTML = "<tr><td colspan='5' class='empty'>No payments available.</td></tr>";
-      revenueBadge.textContent = "Revenue: INR 0";
+      table.innerHTML = "<tr><td colspan='7' class='empty'>No payments available.</td></tr>";
+      revenueBadge.textContent = "Revenue: INR 0 | Paid Orders: 0";
       return;
     }
 
@@ -29,7 +77,9 @@ document.addEventListener("DOMContentLoaded", function () {
       .map(function (item) {
         return (
           "<tr>" +
+          "<td>" + (item.designName || "Manual") + "</td>" +
           "<td>" + item.payer + "</td>" +
+          "<td>" + Number(item.quantity || 1) + "</td>" +
           "<td>" + window.AdminApp.formatCurrency(item.amount) + "</td>" +
           "<td>" + item.method + "</td>" +
           "<td><span class='" + statusClass(item.status) + "'>" + item.status + "</span></td>" +
@@ -39,27 +89,65 @@ document.addEventListener("DOMContentLoaded", function () {
       })
       .join("");
 
-    const revenue = payments
-      .filter(function (item) {
-        return item.status === "Paid";
-      })
-      .reduce(function (sum, item) {
-        return sum + Number(item.amount || 0);
-      }, 0);
-    revenueBadge.textContent = "Revenue: " + window.AdminApp.formatCurrency(revenue);
+    const paidPayments = payments.filter(function (item) {
+      return item.status === "Paid";
+    });
+    const revenue = paidPayments.reduce(function (sum, item) {
+      return sum + Number(item.amount || 0);
+    }, 0);
+    revenueBadge.textContent =
+      "Revenue: " +
+      window.AdminApp.formatCurrency(revenue) +
+      " | Paid Orders: " +
+      paidPayments.length;
   }
+
+  const designs = await getDesignsSafe();
+  populateDesigns(designs);
+  render(window.DataStore.getPayments());
+  updateAmount(designs);
+
+  designSelect.addEventListener("change", function () {
+    updateAmount(designs);
+  });
+
+  quantityInput.addEventListener("input", function () {
+    if (Number(quantityInput.value || 0) < 1) {
+      quantityInput.value = "1";
+    }
+    updateAmount(designs);
+  });
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
+
+    const selectedDesign = getSelectedDesign(designs);
+    if (!selectedDesign) {
+      return;
+    }
+
+    const quantity = Math.max(1, Number(quantityInput.value || 1));
+    const amount = Number(amountInput.value || 0);
+    const status = form.paymentStatus.value;
+
     window.DataStore.addPayment({
       payer: form.payer.value.trim(),
-      amount: Number(form.amount.value || 0),
+      designId: selectedDesign.id,
+      designName: selectedDesign.name,
+      quantity: quantity,
+      amount: amount,
       method: form.method.value,
-      status: form.paymentStatus.value
+      status: status
     });
-    form.reset();
-    render();
-  });
 
-  render();
+    if (status === "Paid" && window.DataStore.incrementDesignDownloads) {
+      window.DataStore.incrementDesignDownloads(selectedDesign.id, quantity);
+    }
+
+    form.reset();
+    quantityInput.value = "1";
+    amountInput.value = "";
+    updateAmount(designs);
+    render(window.DataStore.getPayments());
+  });
 });

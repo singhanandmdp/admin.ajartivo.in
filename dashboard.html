@@ -50,6 +50,7 @@
                   <th>Name</th>
                   <th>Category</th>
                   <th>Price</th>
+                  <th>Downloads</th>
                   <th>Date</th>
                 </tr>
               </thead>
@@ -77,6 +78,53 @@
             </a>
           </div>
           <p class="muted" style="margin-top: 12px;">Admin: <span id="adminName">admin</span></p>
+        </article>
+      </section>
+
+      <section class="grid-2">
+        <article class="panel">
+          <div class="section-head">
+            <h2>Sales Overview</h2>
+            <span>Revenue by design</span>
+          </div>
+          <div class="chart-card" id="salesChart"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <h2>Download Overview</h2>
+            <span>Top downloaded designs</span>
+          </div>
+          <div class="chart-card" id="downloadsChart"></div>
+        </article>
+      </section>
+
+      <section class="grid-2">
+        <article class="panel">
+          <div class="section-head">
+            <h2>Top Design Performance</h2>
+            <span>Sales and downloads</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Design</th>
+                  <th>Downloads</th>
+                  <th>Revenue</th>
+                </tr>
+              </thead>
+              <tbody id="topPerformance"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="section-head">
+            <h2>Current Payment Snapshot</h2>
+            <span>Live from stored entries</span>
+          </div>
+          <div class="metrics-list" id="paymentSnapshot"></div>
         </article>
       </section>
 

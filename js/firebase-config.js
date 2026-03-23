@@ -60,6 +60,7 @@ function normalizeFromFirestore(snapshot) {
     extraImages: extraImages.filter(Boolean),
     gallery: extraImages.filter(Boolean),
     tags: Array.isArray(data.tags) ? data.tags : [],
+    downloadCount: Number(data.downloadCount || 0),
     createdAt: createdAt
   };
 }
@@ -85,6 +86,7 @@ function mapToFirestore(payload) {
         .filter(Boolean)
         .slice(0, 4)
     : [];
+  const downloadCount = Number(payload.downloadCount || 0);
 
   return {
     title: cleanName,
@@ -101,6 +103,7 @@ function mapToFirestore(payload) {
     extraImages: extraImages,
     gallery: extraImages,
     tags: tags,
+    downloadCount: downloadCount,
     createdAt: serverTimestamp()
   };
 }

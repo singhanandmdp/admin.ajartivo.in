@@ -15,6 +15,18 @@ document.addEventListener("DOMContentLoaded", async function () {
     return window.DataStore.getDesigns();
   }
 
+  async function getPaymentsSafe() {
+    const fb = window.AjartivoFirebase || { connected: false };
+    if (fb.connected && typeof fb.getPayments === "function") {
+      try {
+        return await fb.getPayments();
+      } catch (error) {
+        return window.DataStore.getPayments();
+      }
+    }
+    return window.DataStore.getPayments();
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -227,7 +239,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   const designs = await getDesignsSafe();
   const users = window.DataStore.getUsers();
-  const payments = window.DataStore.getPayments();
+  const payments = await getPaymentsSafe();
   const performance = aggregatePerformance(designs, payments);
 
   renderStats(designs, users, payments, performance);

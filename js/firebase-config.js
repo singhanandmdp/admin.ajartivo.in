@@ -11,6 +11,8 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
+  updateDoc,
+  increment,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -65,6 +67,40 @@ function normalizeFromFirestore(snapshot) {
   };
 }
 
+function normalizePaymentStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "paid") {
+    return "Paid";
+  }
+  if (value === "pending") {
+    return "Pending";
+  }
+  if (value === "failed") {
+    return "Failed";
+  }
+  return "Pending";
+}
+
+function normalizePaymentFromFirestore(snapshot) {
+  const data = snapshot.data() || {};
+  const createdAt =
+    data.createdAt && typeof data.createdAt.toDate === "function"
+      ? data.createdAt.toDate().toISOString()
+      : data.createdAt || new Date().toISOString();
+
+  return {
+    id: snapshot.id,
+    payer: String(data.payer || "").trim(),
+    designId: String(data.designId || "").trim(),
+    designName: String(data.designName || "Manual").trim(),
+    quantity: Math.max(1, Number(data.quantity || 1)),
+    amount: Number(data.amount || 0),
+    method: String(data.method || "UPI").trim(),
+    status: normalizePaymentStatus(data.status),
+    createdAt: createdAt
+  };
+}
+
 function mapToFirestore(payload) {
   const cleanName = String(payload.name || payload.title || "").trim();
   const cleanDescription = String(payload.description || "").trim();
@@ -115,6 +151,19 @@ function mapToFirestoreForUpdate(payload) {
   return mapped;
 }
 
+function mapPaymentToFirestore(payload) {
+  return {
+    payer: String(payload.payer || "").trim(),
+    designId: String(payload.designId || "").trim(),
+    designName: String(payload.designName || "Manual").trim(),
+    quantity: Math.max(1, Number(payload.quantity || 1)),
+    amount: Number(payload.amount || 0),
+    method: String(payload.method || "UPI").trim(),
+    status: normalizePaymentStatus(payload.status),
+    createdAt: serverTimestamp()
+  };
+}
+
 const AjartivoFirebase = {
   connected: true,
   async getDesigns() {
@@ -134,6 +183,22 @@ const AjartivoFirebase = {
   },
   async deleteDesign(id) {
     await deleteDoc(doc(db, "designs", id));
+  },
+  async incrementDesignDownloads(id, quantity) {
+    const ref = doc(db, "designs", id);
+    await updateDoc(ref, {
+      downloadCount: increment(Math.max(1, Number(quantity || 1))),
+      updatedAt: serverTimestamp()
+    });
+  },
+  async getPayments() {
+    const snapshot = await getDocs(query(collection(db, "payments"), orderBy("createdAt", "desc")));
+    return snapshot.docs.map(normalizePaymentFromFirestore);
+  },
+  async addPayment(payload) {
+    const docRef = await addDoc(collection(db, "payments"), mapPaymentToFirestore(payload));
+    const freshDoc = await getDoc(doc(db, "payments", docRef.id));
+    return normalizePaymentFromFirestore(freshDoc);
   }
 };
 

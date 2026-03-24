@@ -22,6 +22,51 @@ document.addEventListener("DOMContentLoaded", async function () {
     return window.DataStore.getDesigns();
   }
 
+  async function getPaymentsSafe() {
+    const fb = window.AjartivoFirebase || { connected: false };
+    if (fb.connected && typeof fb.getPayments === "function") {
+      try {
+        return await fb.getPayments();
+      } catch (error) {
+        return window.DataStore.getPayments();
+      }
+    }
+    return window.DataStore.getPayments();
+  }
+
+  async function addPaymentSafe(payload) {
+    const fb = window.AjartivoFirebase || { connected: false };
+    if (fb.connected && typeof fb.addPayment === "function") {
+      try {
+        await fb.addPayment(payload);
+        return;
+      } catch (error) {
+        window.DataStore.addPayment(payload);
+        return;
+      }
+    }
+    window.DataStore.addPayment(payload);
+  }
+
+  async function incrementDesignDownloadsSafe(id, quantity) {
+    const fb = window.AjartivoFirebase || { connected: false };
+    if (fb.connected && typeof fb.incrementDesignDownloads === "function") {
+      try {
+        await fb.incrementDesignDownloads(id, quantity);
+        return;
+      } catch (error) {
+        if (window.DataStore.incrementDesignDownloads) {
+          window.DataStore.incrementDesignDownloads(id, quantity);
+        }
+        return;
+      }
+    }
+
+    if (window.DataStore.incrementDesignDownloads) {
+      window.DataStore.incrementDesignDownloads(id, quantity);
+    }
+  }
+
   function statusClass(status) {
     if (status === "Paid") {
       return "status-pill status-success";
@@ -104,7 +149,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   const designs = await getDesignsSafe();
   populateDesigns(designs);
-  render(window.DataStore.getPayments());
+  render(await getPaymentsSafe());
   updateAmount(designs);
 
   designSelect.addEventListener("change", function () {
@@ -118,7 +163,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     updateAmount(designs);
   });
 
-  form.addEventListener("submit", function (event) {
+  form.addEventListener("submit", async function (event) {
     event.preventDefault();
 
     const selectedDesign = getSelectedDesign(designs);
@@ -130,7 +175,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const amount = Number(amountInput.value || 0);
     const status = form.paymentStatus.value;
 
-    window.DataStore.addPayment({
+    const payload = {
       payer: form.payer.value.trim(),
       designId: selectedDesign.id,
       designName: selectedDesign.name,
@@ -138,16 +183,18 @@ document.addEventListener("DOMContentLoaded", async function () {
       amount: amount,
       method: form.method.value,
       status: status
-    });
+    };
 
-    if (status === "Paid" && window.DataStore.incrementDesignDownloads) {
-      window.DataStore.incrementDesignDownloads(selectedDesign.id, quantity);
+    await addPaymentSafe(payload);
+
+    if (status === "Paid") {
+      await incrementDesignDownloadsSafe(selectedDesign.id, quantity);
     }
 
     form.reset();
     quantityInput.value = "1";
     amountInput.value = "";
     updateAmount(designs);
-    render(window.DataStore.getPayments());
+    render(await getPaymentsSafe());
   });
 });

@@ -30,10 +30,15 @@
   }
 
   function normalizePayment(item) {
+    const rawStatus = String(item.status || "").trim().toLowerCase();
+    const status =
+      rawStatus === "paid" ? "Paid" : rawStatus === "failed" ? "Failed" : "Pending";
+
     return {
       ...item,
       amount: Number(item.amount || 0),
-      quantity: Math.max(1, Number(item.quantity || 1))
+      quantity: Math.max(1, Number(item.quantity || 1)),
+      status: status
     };
   }
 

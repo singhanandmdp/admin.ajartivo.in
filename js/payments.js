@@ -11,10 +11,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   const amountInput = document.getElementById("amount");
 
   async function getDesignsSafe() {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected) {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getDesigns === "function") {
       try {
-        return await fb.getDesigns();
+        return await store.getDesigns();
       } catch (error) {
         return window.DataStore.getDesigns();
       }
@@ -23,10 +23,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   async function getPaymentsSafe() {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected && typeof fb.getPayments === "function") {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getPayments === "function") {
       try {
-        return await fb.getPayments();
+        return await store.getPayments();
       } catch (error) {
         return window.DataStore.getPayments();
       }
@@ -35,10 +35,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   async function addPaymentSafe(payload) {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected && typeof fb.addPayment === "function") {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.addPayment === "function") {
       try {
-        await fb.addPayment(payload);
+        await store.addPayment(payload);
         return;
       } catch (error) {
         window.DataStore.addPayment(payload);
@@ -49,10 +49,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   async function incrementDesignDownloadsSafe(id, quantity) {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected && typeof fb.incrementDesignDownloads === "function") {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.incrementDesignDownloads === "function") {
       try {
-        await fb.incrementDesignDownloads(id, quantity);
+        await store.incrementDesignDownloads(id, quantity);
         return;
       } catch (error) {
         if (window.DataStore.incrementDesignDownloads) {

@@ -1,18 +1,9 @@
-﻿import {
-  signInWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { auth, ADMIN_EMAIL } from "./firebase-config.js";
+import { supabase, getCurrentUser, getAdminRole, isAdminRole, normalizeEmail } from "./supabase-auth.js";
 
 const PROFILE_KEY = "ajartivo_admin_profile";
 const NOTICE_KEY = "ajartivo_auth_notice";
 
-function normalizeEmail(email) {
-  return String(email || "").trim().toLowerCase();
-}
-
-function setProfile(user) {
+function setProfile(user, role) {
   const email = normalizeEmail(user && user.email);
   if (!email) {
     localStorage.removeItem(PROFILE_KEY);
@@ -22,8 +13,10 @@ function setProfile(user) {
   localStorage.setItem(
     PROFILE_KEY,
     JSON.stringify({
+      id: String(user && user.id || ""),
       username: email,
       email: email,
+      role: String(role || "").trim().toLowerCase() || "admin",
       isLoggedIn: true,
       loggedInAt: new Date().toISOString()
     })
@@ -48,24 +41,26 @@ function consumeNotice() {
   return message || "";
 }
 
-function isAllowedAdmin(user) {
-  return normalizeEmail(user && user.email) === normalizeEmail(ADMIN_EMAIL);
-}
-
 function mapAuthError(error) {
-  const code = (error && error.code) || "";
+  const message = String(error && (error.message || error.code) || "").toLowerCase();
 
-  if (code === "auth/invalid-credential") {
+  if (message.includes("invalid login credentials")) {
     return "Invalid email or password.";
   }
-  if (code === "auth/invalid-email") {
+  if (message.includes("invalid email")) {
     return "Please enter a valid email address.";
   }
-  if (code === "auth/too-many-requests") {
+  if (message.includes("too many requests")) {
     return "Too many attempts. Try again after some time.";
   }
-  if (code === "auth/network-request-failed") {
+  if (message.includes("network") || message.includes("fetch")) {
     return "Network error. Check your connection and retry.";
+  }
+  if (message.includes("email not confirmed")) {
+    return "Please verify your email before logging in.";
+  }
+  if (message.includes("json object requested")) {
+    return "Admin role record not found in Supabase users table.";
   }
 
   return "Login failed. Please try again.";
@@ -74,7 +69,7 @@ function mapAuthError(error) {
 async function logout() {
   clearProfile();
   try {
-    await signOut(auth);
+    await supabase.auth.signOut();
   } finally {
     window.location.href = "index.html";
   }
@@ -154,19 +149,33 @@ function bindLoginForm() {
     setLoadingState(submitButton, true);
 
     try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
 
-      if (!isAllowedAdmin(credential.user)) {
-        await signOut(auth);
+      if (error) {
+        throw error;
+      }
+
+      const user = data && data.user ? data.user : await getCurrentUser();
+
+      if (!user) {
+        throw new Error("Login failed. User session not found.");
+      }
+
+      const role = await getAdminRole(user);
+      if (!isAdminRole(role)) {
+        await supabase.auth.signOut();
         clearProfile();
-        updateLoginMessage(errorBox, "Access denied: this account is not authorized for admin panel.");
+        updateLoginMessage(errorBox, "Access denied");
         card.classList.remove("is-error");
         void card.offsetWidth;
         card.classList.add("is-error");
         return;
       }
 
-      setProfile(credential.user);
+      setProfile(user, role);
       window.location.href = "dashboard.html";
     } catch (error) {
       clearProfile();
@@ -180,27 +189,31 @@ function bindLoginForm() {
   });
 }
 
-function handleLoginPageAuthState() {
+async function handleLoginPageAuthState() {
   if (document.body.dataset.page !== "login") {
     return;
   }
 
-  onAuthStateChanged(auth, async function (user) {
+  try {
+    const user = await getCurrentUser();
     if (!user) {
       clearProfile();
       return;
     }
 
-    if (!isAllowedAdmin(user)) {
-      await signOut(auth);
+    const role = await getAdminRole(user);
+    if (!isAdminRole(role)) {
+      await supabase.auth.signOut();
       clearProfile();
-      setNotice("Access denied: only authorized admin email can login.");
+      setNotice("Access denied");
       return;
     }
 
-    setProfile(user);
+    setProfile(user, role);
     window.location.href = "dashboard.html";
-  });
+  } catch (error) {
+    clearProfile();
+  }
 }
 
 window.AjartivoAuth = {

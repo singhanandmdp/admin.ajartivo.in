@@ -4,10 +4,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   async function getDesignsSafe() {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected) {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getDesigns === "function") {
       try {
-        return await fb.getDesigns();
+        return await store.getDesigns();
       } catch (error) {
         return window.DataStore.getDesigns();
       }
@@ -16,10 +16,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   async function getPaymentsSafe() {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected && typeof fb.getPayments === "function") {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getPayments === "function") {
       try {
-        return await fb.getPayments();
+        return await store.getPayments();
       } catch (error) {
         return window.DataStore.getPayments();
       }
@@ -238,7 +238,9 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   const designs = await getDesignsSafe();
-  const users = window.DataStore.getUsers();
+  const users = window.AdminData && typeof window.AdminData.getUsers === "function"
+    ? await window.AdminData.getUsers().catch(function () { return window.DataStore.getUsers(); })
+    : window.DataStore.getUsers();
   const payments = await getPaymentsSafe();
   const performance = aggregatePerformance(designs, payments);
 

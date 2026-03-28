@@ -1,19 +1,16 @@
-﻿import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { auth, ADMIN_EMAIL } from "../js/firebase-config.js";
+import { supabase, getCurrentUser, getAdminRole, isAdminRole, normalizeEmail } from "../js/supabase-auth.js";
 
 const PROFILE_KEY = "ajartivo_admin_profile";
 const NOTICE_KEY = "ajartivo_auth_notice";
 
-function normalizeEmail(email) {
-  return String(email || "").trim().toLowerCase();
-}
-
-function setProfile(user) {
+function setProfile(user, role) {
   localStorage.setItem(
     PROFILE_KEY,
     JSON.stringify({
+      id: String(user && user.id || ""),
       username: normalizeEmail(user.email),
       email: normalizeEmail(user.email),
+      role: String(role || "").trim().toLowerCase() || "admin",
       isLoggedIn: true,
       loggedInAt: new Date().toISOString()
     })
@@ -25,7 +22,7 @@ function clearProfile() {
 }
 
 function denyAndRedirect() {
-  sessionStorage.setItem(NOTICE_KEY, "Access Denied: unauthorized account.");
+  sessionStorage.setItem(NOTICE_KEY, "Access denied");
   window.location.href = "index.html";
 }
 
@@ -34,20 +31,31 @@ document.addEventListener("DOMContentLoaded", function () {
     return;
   }
 
-  onAuthStateChanged(auth, async function (user) {
+  verifyAdminAccess();
+});
+
+async function verifyAdminAccess() {
+  try {
+    const user = await getCurrentUser();
+
     if (!user) {
       clearProfile();
       window.location.href = "index.html";
       return;
     }
 
-    if (normalizeEmail(user.email) !== normalizeEmail(ADMIN_EMAIL)) {
+    const role = await getAdminRole(user);
+
+    if (!isAdminRole(role)) {
       clearProfile();
-      await signOut(auth);
+      await supabase.auth.signOut();
       denyAndRedirect();
       return;
     }
 
-    setProfile(user);
-  });
-});
+    setProfile(user, role);
+  } catch (error) {
+    clearProfile();
+    window.location.href = "index.html";
+  }
+}

@@ -1,7 +1,14 @@
-﻿document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function () {
   if (document.body.dataset.page !== "upload") {
     return;
   }
+
+  const CLOUDINARY_CLOUD_NAME = "dp6us2a5n".trim();
+  const CLOUDINARY_UPLOAD_PRESET = "ajartivo_upload".trim();
+  const CLOUDINARY_UPLOAD_URL =
+    "https://api.cloudinary.com/v1_1/" + CLOUDINARY_CLOUD_NAME + "/auto/upload";
+  const MAX_FILE_SIZE_MB = 10;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
   const form = document.getElementById("designForm");
   const cards = document.getElementById("designCards");
@@ -69,27 +76,74 @@
     priceField.style.opacity = "1";
   }
 
-  function toDataUrl(file) {
-    return new Promise(function (resolve, reject) {
-      const reader = new FileReader();
-      reader.onload = function (event) {
-        resolve(String(event.target.result || ""));
-      };
-      reader.onerror = function () {
-        reject(new Error("Image read failed"));
-      };
-      reader.readAsDataURL(file);
+  function setFormBusy(isBusy) {
+    submitButton.disabled = isBusy;
+    addImageBtn.disabled = isBusy;
+    form.name.disabled = isBusy;
+    form.category.disabled = isBusy;
+    form.downloadUrl.disabled = isBusy;
+    form.description.disabled = isBusy;
+    previewUrlInput.disabled = isBusy;
+    previewFileInput.disabled = isBusy;
+
+    paymentModeInputs.forEach(function (input) {
+      input.disabled = isBusy;
     });
+
+    additionalImageInputs.querySelectorAll("input, button").forEach(function (element) {
+      element.disabled = isBusy;
+    });
+
+    applyPaymentModeUI();
   }
 
-  async function resolveImageValue(urlInput, fileInput) {
+  function validateImageFile(file) {
+    if (!file) {
+      throw new Error("Image file missing.");
+    }
+
+    if (!file.type || file.type.indexOf("image/") !== 0) {
+      throw new Error("Only image files are allowed.");
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error("Image size must be " + MAX_FILE_SIZE_MB + " MB or less.");
+    }
+  }
+
+  async function uploadToCloudinary(file) {
+    validateImageFile(file);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("cloud_name", CLOUDINARY_CLOUD_NAME);
+
+    const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+      method: "POST",
+      body: formData
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result.secure_url) {
+      throw new Error(
+        (result && result.error && result.error.message) ||
+          "Cloudinary upload failed. Please try again."
+      );
+    }
+
+    return String(result.secure_url || "").trim();
+  }
+
+  async function resolveImageValue(urlInput, fileInput, statusLabel) {
     const typedUrl = String(urlInput.value || "").trim();
     if (typedUrl) {
       return typedUrl;
     }
 
     if (fileInput && fileInput.files && fileInput.files[0]) {
-      return await toDataUrl(fileInput.files[0]);
+      setStatus("Uploading " + statusLabel + "...", "warning");
+      return await uploadToCloudinary(fileInput.files[0]);
     }
 
     return "";
@@ -134,10 +188,10 @@
   }
 
   async function getDesignsSafe() {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected) {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getDesigns === "function") {
       try {
-        return await fb.getDesigns();
+        return await store.getDesigns();
       } catch (error) {
         return window.DataStore.getDesigns();
       }
@@ -146,13 +200,9 @@
   }
 
   async function addDesignSafe(payload) {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected) {
-      try {
-        await fb.addDesign(payload);
-      } catch (error) {
-        window.DataStore.addDesign(payload);
-      }
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.addDesign === "function") {
+      await store.addDesign(payload);
       return;
     }
 
@@ -160,13 +210,9 @@
   }
 
   async function updateDesignSafe(id, payload) {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected && typeof fb.updateDesign === "function") {
-      try {
-        await fb.updateDesign(id, payload);
-      } catch (error) {
-        window.DataStore.updateDesign(id, payload);
-      }
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.updateDesign === "function") {
+      await store.updateDesign(id, payload);
       return;
     }
 
@@ -174,13 +220,9 @@
   }
 
   async function deleteDesignSafe(id) {
-    const fb = window.AjartivoFirebase || { connected: false };
-    if (fb.connected && typeof fb.deleteDesign === "function") {
-      try {
-        await fb.deleteDesign(id);
-      } catch (error) {
-        window.DataStore.deleteDesign(id);
-      }
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.deleteDesign === "function") {
+      await store.deleteDesign(id);
       return;
     }
 
@@ -223,15 +265,19 @@
 
   async function buildPayload() {
     const paymentMode = getSelectedPaymentMode();
-    const previewUrl = await resolveImageValue(previewUrlInput, previewFileInput);
-
+    const previewUrl = await resolveImageValue(previewUrlInput, previewFileInput, "preview image");
     const rows = additionalImageInputs.querySelectorAll(".image-input-row");
     const images = [];
 
-    for (const row of rows) {
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
       const rowUrlInput = row.querySelector(".additional-image-url");
       const rowFileInput = row.querySelector(".image-file-input");
-      const value = await resolveImageValue(rowUrlInput, rowFileInput);
+      const value = await resolveImageValue(
+        rowUrlInput,
+        rowFileInput,
+        "additional image " + (index + 1)
+      );
       if (value) {
         images.push(value);
       }
@@ -307,7 +353,7 @@
     cards.querySelectorAll("[data-delete-id]").forEach(function (button) {
       button.addEventListener("click", async function () {
         const id = button.dataset.deleteId;
-        const confirmed = window.confirm("Is design ko remove karna hai?");
+        const confirmed = window.confirm("Do you want to remove this design?");
         if (!confirmed) {
           return;
         }
@@ -328,7 +374,7 @@
 
   previewFileInput.addEventListener("change", function () {
     if (previewFileInput.files && previewFileInput.files[0]) {
-      setStatus("Preview image file selected", "warning");
+      setStatus("Preview image file selected for Cloudinary upload", "warning");
     }
   });
 
@@ -339,15 +385,18 @@
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
 
-    const payload = await buildPayload();
-    if (!payload.name) {
-      setStatus("Design name required", "danger");
-      return;
-    }
-
-    submitButton.disabled = true;
-
     try {
+      setFormBusy(true);
+      setStatus("Preparing upload...", "warning");
+
+      const payload = await buildPayload();
+      if (!payload.name) {
+        setStatus("Design name required", "danger");
+        return;
+      }
+
+      setStatus(editingId ? "Updating design..." : "Saving design...", "warning");
+
       if (editingId) {
         await updateDesignSafe(editingId, payload);
         setStatus("Design updated successfully", "success");
@@ -359,9 +408,9 @@
       clearFormState(statusBadge.textContent);
       await renderCards();
     } catch (error) {
-      setStatus("Save failed. Try again.", "danger");
+      setStatus(error && error.message ? error.message : "Save failed. Try again.", "danger");
     } finally {
-      submitButton.disabled = false;
+      setFormBusy(false);
     }
   });
 

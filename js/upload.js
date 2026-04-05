@@ -1,7 +1,8 @@
 import { supabase } from "./supabase-auth.js";
 
 const LOCAL_BACKEND_BASE_URL = "http://localhost:5000";
-const LIVE_BACKEND_BASE_URL = "https://ajartivo-in.onrender.com";
+const LIVE_BACKEND_BASE_URL = "https://ajartivo-backend.onrender.com";
+const BASE_URL = resolveBackendBaseUrl();
 const MAX_DESIGN_FILE_MB = 50;
 const MAX_PREVIEW_FILE_MB = 10;
 const DESIGN_FILE_TYPES = [".png", ".jpg", ".jpeg", ".zip", ".psd", ".ai", ".cdr"];
@@ -495,7 +496,7 @@ document.addEventListener("DOMContentLoaded", function () {
       requestOptions.headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${resolveBackendBaseUrl()}${path}`, requestOptions);
+    const response = await fetch(`${BASE_URL}${path}`, requestOptions);
     const payload = await response.json().catch(function () {
       return {};
     });

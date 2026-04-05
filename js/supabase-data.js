@@ -34,10 +34,10 @@ async function addDesign(payload) {
   await requireAuthenticatedUser();
 
   const normalized = normalizeDesign(payload);
-  const fullRecord = buildProductInsertRecord(normalized, false);
+  const fullRecord = buildDesignInsertRecord(normalized, false);
 
   try {
-    const inserted = await insertProductRecord(fullRecord);
+    const inserted = await insertDesignRecord(fullRecord);
     return normalizeDesign(inserted);
   } catch (error) {
     if (!isMissingColumnError(error)) {
@@ -45,9 +45,9 @@ async function addDesign(payload) {
     }
   }
 
-  console.warn("Retrying product insert with compatible schema payload.");
-  const fallbackRecord = buildProductInsertRecord(normalized, true);
-  const inserted = await insertProductRecord(fallbackRecord);
+  console.warn("Retrying design insert with compatible schema payload.");
+  const fallbackRecord = buildDesignInsertRecord(normalized, true);
+  const inserted = await insertDesignRecord(fallbackRecord);
   return normalizeDesign(inserted);
 }
 
@@ -55,10 +55,10 @@ async function updateDesign(id, payload) {
   await requireAuthenticatedUser();
 
   const normalized = normalizeDesign(payload);
-  const fullRecord = buildProductUpdateRecord(normalized, false);
+  const fullRecord = buildDesignUpdateRecord(normalized, false);
 
   try {
-    const updated = await updateProductRecord(id, fullRecord);
+    const updated = await updateDesignRecord(id, fullRecord);
     return normalizeDesign(updated);
   } catch (error) {
     if (!isMissingColumnError(error)) {
@@ -66,9 +66,9 @@ async function updateDesign(id, payload) {
     }
   }
 
-  console.warn("Retrying product update with compatible schema payload.");
-  const fallbackRecord = buildProductUpdateRecord(normalized, true);
-  const updated = await updateProductRecord(id, fallbackRecord);
+  console.warn("Retrying design update with compatible schema payload.");
+  const fallbackRecord = buildDesignUpdateRecord(normalized, true);
+  const updated = await updateDesignRecord(id, fallbackRecord);
   return normalizeDesign(updated);
 }
 
@@ -217,13 +217,13 @@ async function updateCurrentAdminPassword(payload) {
   return data && data.user ? data.user : null;
 }
 
-async function insertProductRecord(record) {
+async function insertDesignRecord(record) {
   const { data, error } = await client.from("designs").insert(record).select("*").single();
   if (error) throw error;
   return data;
 }
 
-async function updateProductRecord(id, record) {
+async function updateDesignRecord(id, record) {
   const { data, error } = await client
     .from("designs")
     .update(record)
@@ -301,10 +301,10 @@ function normalizeDesign(record) {
   };
 }
 
-function buildProductInsertRecord(payload, compatibleMode) {
+function buildDesignInsertRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
   const timestamp = new Date().toISOString();
-  const baseRecord = buildBaseProductRecord(normalized);
+  const baseRecord = buildBaseDesignRecord(normalized);
 
   if (compatibleMode) {
     return {
@@ -324,9 +324,9 @@ function buildProductInsertRecord(payload, compatibleMode) {
   };
 }
 
-function buildProductUpdateRecord(payload, compatibleMode) {
+function buildDesignUpdateRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
-  const baseRecord = buildBaseProductRecord(normalized);
+  const baseRecord = buildBaseDesignRecord(normalized);
 
   if (compatibleMode) {
     return baseRecord;
@@ -342,7 +342,7 @@ function buildProductUpdateRecord(payload, compatibleMode) {
   };
 }
 
-function buildBaseProductRecord(normalized) {
+function buildBaseDesignRecord(normalized) {
   return {
     title: normalized.title,
     category: normalized.category,

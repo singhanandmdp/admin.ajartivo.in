@@ -3,6 +3,231 @@ document.addEventListener("DOMContentLoaded", async function () {
     return;
   }
 
+  function getActiveSession() {
+    return window.AdminApp && typeof window.AdminApp.getSession === "function"
+      ? window.AdminApp.getSession()
+      : null;
+  }
+
+  function getDisplayName(session) {
+    if (window.AdminApp && typeof window.AdminApp.getDisplayName === "function") {
+      return window.AdminApp.getDisplayName(session);
+    }
+
+    return String(session && (session.name || session.username || session.email) || "Admin").trim();
+  }
+
+  function setStatus(node, type, message) {
+    if (!node) {
+      return;
+    }
+
+    if (!message) {
+      node.textContent = "";
+      node.style.display = "none";
+      node.className = "status-pill";
+      return;
+    }
+
+    node.textContent = message;
+    node.style.display = "inline-flex";
+    node.className = "status-pill " + (
+      type === "success" ? "status-success" :
+      type === "danger" ? "status-danger" :
+      "status-warning"
+    );
+  }
+
+  function setButtonLoading(button, isLoading, idleText, loadingText) {
+    if (!button) {
+      return;
+    }
+
+    button.disabled = isLoading;
+    button.textContent = isLoading ? loadingText : idleText;
+  }
+
+  function formatRoleLabel(role) {
+    const value = String(role || "").trim().toLowerCase();
+    if (value === "admin") {
+      return "Admin";
+    }
+    if (value === "moderator") {
+      return "Moderator";
+    }
+    return "User";
+  }
+
+  function syncAdminIdentity(session) {
+    const activeSession = session || getActiveSession();
+    const displayName = getDisplayName(activeSession);
+    const email = String(activeSession && activeSession.email || "-").trim();
+    const role = String(activeSession && activeSession.role || "admin").trim();
+
+    const nameNodes = [
+      document.getElementById("adminName"),
+      document.getElementById("adminDisplayName")
+    ];
+
+    nameNodes.forEach(function (node) {
+      if (node) {
+        node.textContent = displayName;
+      }
+    });
+
+    const emailNode = document.getElementById("adminEmail");
+    if (emailNode) {
+      emailNode.textContent = email;
+    }
+
+    const roleNode = document.getElementById("adminRoleLabel");
+    if (roleNode) {
+      roleNode.textContent = formatRoleLabel(role);
+    }
+
+    const nameInput = document.getElementById("adminProfileName");
+    if (nameInput && document.activeElement !== nameInput) {
+      nameInput.value = activeSession && activeSession.name ? activeSession.name : displayName;
+    }
+  }
+
+  async function updateProfileSafe(payload) {
+    const session = getActiveSession() || {};
+    const store = window.AdminData || { connected: false };
+
+    if (store.connected && typeof store.updateCurrentAdminProfile === "function") {
+      return await store.updateCurrentAdminProfile(payload);
+    }
+
+    if (window.DataStore && typeof window.DataStore.updateCurrentAdminProfile === "function") {
+      return window.DataStore.updateCurrentAdminProfile(payload, session);
+    }
+
+    throw new Error("Profile update is not available right now.");
+  }
+
+  async function updatePasswordSafe(payload) {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.updateCurrentAdminPassword === "function") {
+      return await store.updateCurrentAdminPassword(payload);
+    }
+
+    throw new Error("Password change requires an active Supabase connection.");
+  }
+
+  function bindPasswordVisibilityToggles() {
+    const toggleButtons = document.querySelectorAll("[data-password-toggle]");
+    if (!toggleButtons.length) {
+      return;
+    }
+
+    toggleButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        const inputId = button.getAttribute("data-password-toggle");
+        const input = inputId ? document.getElementById(inputId) : null;
+        if (!input) {
+          return;
+        }
+
+        const shouldShow = input.type === "password";
+        input.type = shouldShow ? "text" : "password";
+        button.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+        button.setAttribute(
+          "aria-label",
+          (shouldShow ? "Hide " : "Show ") + inputId.replace(/([A-Z])/g, " $1").toLowerCase()
+        );
+      });
+    });
+  }
+
+  function resetPasswordVisibility() {
+    const toggleButtons = document.querySelectorAll("[data-password-toggle]");
+    toggleButtons.forEach(function (button) {
+      const inputId = button.getAttribute("data-password-toggle");
+      const input = inputId ? document.getElementById(inputId) : null;
+      if (!input) {
+        return;
+      }
+
+      input.type = "password";
+      button.setAttribute("aria-pressed", "false");
+      button.setAttribute("aria-label", "Show " + inputId.replace(/([A-Z])/g, " $1").toLowerCase());
+    });
+  }
+
+  function bindProfileForms() {
+    const profileForm = document.getElementById("profileForm");
+    const passwordForm = document.getElementById("passwordForm");
+    const profileStatus = document.getElementById("profileStatus");
+    const passwordStatus = document.getElementById("passwordStatus");
+
+    if (profileForm) {
+      profileForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const submitButton = profileForm.querySelector("button[type='submit']");
+        const nextName = String(profileForm.adminProfileName.value || "").trim();
+
+        if (!nextName) {
+          setStatus(profileStatus, "danger", "Please enter a valid admin name.");
+          return;
+        }
+
+        setStatus(profileStatus, "warning", "Saving profile...");
+        setButtonLoading(submitButton, true, "Save Name", "Saving...");
+
+        try {
+          const updated = await updateProfileSafe({ name: nextName });
+          if (window.AdminApp && typeof window.AdminApp.updateSession === "function") {
+            window.AdminApp.updateSession({
+              name: updated && updated.name ? updated.name : nextName
+            });
+          }
+          syncAdminIdentity();
+          setStatus(profileStatus, "success", "Admin name updated successfully.");
+        } catch (error) {
+          setStatus(profileStatus, "danger", error && error.message ? error.message : "Could not update admin name.");
+        } finally {
+          setButtonLoading(submitButton, false, "Save Name", "Saving...");
+        }
+      });
+    }
+
+    if (passwordForm) {
+      passwordForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const submitButton = passwordForm.querySelector("button[type='submit']");
+        const nextPassword = String(passwordForm.newPassword.value || "");
+        const confirmPassword = String(passwordForm.confirmPassword.value || "");
+
+        if (nextPassword.length < 8) {
+          setStatus(passwordStatus, "danger", "Password must be at least 8 characters long.");
+          return;
+        }
+
+        if (nextPassword !== confirmPassword) {
+          setStatus(passwordStatus, "danger", "Confirm password does not match.");
+          return;
+        }
+
+        setStatus(passwordStatus, "warning", "Updating password...");
+        setButtonLoading(submitButton, true, "Update Password", "Updating...");
+
+        try {
+          await updatePasswordSafe({ password: nextPassword });
+          passwordForm.reset();
+          resetPasswordVisibility();
+          setStatus(passwordStatus, "success", "Password updated successfully.");
+        } catch (error) {
+          setStatus(passwordStatus, "danger", error && error.message ? error.message : "Could not update password.");
+        } finally {
+          setButtonLoading(submitButton, false, "Update Password", "Updating...");
+        }
+      });
+    }
+  }
+
   async function getDesignsSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getDesigns === "function") {
@@ -85,6 +310,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     const paidPayments = payments.filter(function (item) {
       return item.status === "Paid";
     });
+    const adminUsers = users.filter(function (item) {
+      return String(item && item.role || "").trim().toLowerCase() === "admin";
+    });
     const revenue = paidPayments.reduce(function (sum, item) {
       return sum + Number(item.amount || 0);
     }, 0);
@@ -94,7 +322,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const stats = [
       { title: "Total Designs", value: designs.length, hint: "All uploaded assets" },
-      { title: "Admin Users", value: users.length, hint: "Access panel users" },
+      { title: "Admin Users", value: adminUsers.length, hint: "Profiles with admin role" },
       { title: "Current Payments", value: payments.length, hint: "Stored payment entries" },
       { title: "Revenue", value: window.AdminApp.formatCurrency(revenue), hint: "Paid sales only" },
       { title: "Total Downloads", value: totalDownloads, hint: "Paid download count" }
@@ -269,8 +497,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   renderTopPerformance(performance);
   renderPaymentSnapshot(payments);
 
-  const session = window.AdminApp.getSession();
-  if (session) {
-    document.getElementById("adminName").textContent = session.username;
-  }
+  bindPasswordVisibilityToggles();
+  bindProfileForms();
+  syncAdminIdentity();
+  window.addEventListener("ajartivo:session-updated", function (event) {
+    syncAdminIdentity(event.detail);
+  });
 });

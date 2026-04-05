@@ -16,6 +16,25 @@ document.addEventListener("DOMContentLoaded", function () {
     return "status-pill status-danger";
   }
 
+  function formatRole(role) {
+    const value = String(role || "").trim().toLowerCase();
+    if (value === "admin") {
+      return "Admin";
+    }
+    if (value === "moderator") {
+      return "Moderator";
+    }
+    return "User";
+  }
+
+  function normalizeManageableRole(role) {
+    const value = String(role || "").trim().toLowerCase();
+    if (value === "moderator") {
+      return "moderator";
+    }
+    return "user";
+  }
+
   async function getUsersSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getUsers === "function") {
@@ -58,18 +77,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function render() {
     getUsersSafe().then(function (users) {
-      if (users.length === 0) {
+      const visibleUsers = users.filter(function (user) {
+        return String(user && user.role || "").trim().toLowerCase() !== "admin";
+      });
+
+      if (visibleUsers.length === 0) {
         table.innerHTML = "<tr><td colspan='5' class='empty'>No users found.</td></tr>";
         return;
       }
 
-      table.innerHTML = users
+      table.innerHTML = visibleUsers
         .map(function (user) {
           return (
             "<tr>" +
             "<td>" + user.name + "</td>" +
             "<td>" + user.email + "</td>" +
-            "<td>" + user.role + "</td>" +
+            "<td>" + formatRole(user.role) + "</td>" +
             "<td><span class='" + statusClass(user.status) + "'>" + user.status + "</span></td>" +
             "<td><button class='btn btn-soft' data-user-id='" + user.id + "'>Remove</button></td>" +
             "</tr>"
@@ -93,7 +116,7 @@ document.addEventListener("DOMContentLoaded", function () {
     await addUserSafe({
       name: form.userName.value.trim(),
       email: form.userEmail.value.trim(),
-      role: form.userRole.value,
+      role: normalizeManageableRole(form.userRole.value),
       status: form.userStatus.value
     });
     form.reset();

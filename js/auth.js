@@ -1,9 +1,18 @@
-import { supabase, getCurrentUser, getAdminRole, isAdminRole, normalizeEmail } from "./supabase-auth.js";
+import { supabase, getCurrentUser, getUserProfile, isAdminRole, normalizeEmail, normalizeRole } from "./supabase-auth.js";
 
 const PROFILE_KEY = "ajartivo_admin_profile";
 const NOTICE_KEY = "ajartivo_auth_notice";
+const ADMIN_HOME_PATH = "dashboard.html";
 
-function setProfile(user, role) {
+function resolveProfileName(user, profile) {
+  const profileName = String(profile && profile.name || "").trim();
+  const metadataName = String(
+    user && user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name) || ""
+  ).trim();
+  return profileName || metadataName || normalizeEmail(user && user.email);
+}
+
+function setProfile(user, role, profile) {
   const email = normalizeEmail(user && user.email);
   if (!email) {
     localStorage.removeItem(PROFILE_KEY);
@@ -15,8 +24,9 @@ function setProfile(user, role) {
     JSON.stringify({
       id: String(user && user.id || ""),
       username: email,
+      name: resolveProfileName(user, profile),
       email: email,
-      role: String(role || "").trim().toLowerCase() || "admin",
+      role: normalizeRole(role),
       isLoggedIn: true,
       loggedInAt: new Date().toISOString()
     })
@@ -41,6 +51,17 @@ function consumeNotice() {
   return message || "";
 }
 
+async function rejectNonAdminAccess(message) {
+  clearProfile();
+  setNotice(message || "Access denied. Admin role required.");
+  try {
+    await supabase.auth.signOut();
+  } catch (error) {
+    // Ignore sign-out failure and continue to the login screen.
+  }
+  window.location.href = "index.html";
+}
+
 function mapAuthError(error) {
   const message = String(error && (error.message || error.code) || "").toLowerCase();
 
@@ -60,7 +81,7 @@ function mapAuthError(error) {
     return "Please verify your email before logging in.";
   }
   if (message.includes("json object requested")) {
-    return "Admin role record not found in Supabase users table.";
+    return "Profile record not found in the profiles table.";
   }
 
   return "Login failed. Please try again.";
@@ -99,6 +120,24 @@ function updateLoginMessage(node, message) {
   node.style.display = "none";
 }
 
+async function resolveInvalidCredentialsHint(email, error) {
+  const message = String(error && (error.message || error.code) || "").toLowerCase();
+  if (!email || !message.includes("invalid login credentials")) {
+    return "";
+  }
+
+  try {
+    const profile = await getUserProfile({ email: email });
+    if (!profile) {
+      return "";
+    }
+
+    return "A profile exists for this email, but Supabase Auth did not accept the login. Check the same email in Supabase Authentication > Users and reset its password if needed.";
+  } catch (lookupError) {
+    return "";
+  }
+}
+
 function setLoadingState(button, isLoading) {
   if (!button) {
     return;
@@ -131,6 +170,7 @@ function bindLoginForm() {
   }
 
   const errorBox = document.getElementById("loginError");
+  const hintBox = document.getElementById("loginHint");
   const card = document.getElementById("loginCard");
   const submitButton = form.querySelector("button[type='submit']");
 
@@ -142,6 +182,7 @@ function bindLoginForm() {
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
     updateLoginMessage(errorBox, "");
+    updateLoginMessage(hintBox, "");
 
     const email = normalizeEmail(form.email.value);
     const password = String(form.password.value || "");
@@ -164,22 +205,28 @@ function bindLoginForm() {
         throw new Error("Login failed. User session not found.");
       }
 
-      const role = await getAdminRole(user);
-      if (!isAdminRole(role)) {
+      const profile = await getUserProfile(user);
+      const role = normalizeRole(profile && profile.role);
+
+      if (!profile) {
         await supabase.auth.signOut();
         clearProfile();
-        updateLoginMessage(errorBox, "Access denied");
-        card.classList.remove("is-error");
-        void card.offsetWidth;
-        card.classList.add("is-error");
+        updateLoginMessage(errorBox, "Profile not found");
+        updateLoginMessage(hintBox, "This account is signed in, but no profile row exists in the profiles table.");
         return;
       }
 
-      setProfile(user, role);
-      window.location.href = "dashboard.html";
+      if (!isAdminRole(role)) {
+        await rejectNonAdminAccess("Access denied. Only admin role can open the admin panel.");
+        return;
+      }
+
+      setProfile(user, role, profile);
+      window.location.href = ADMIN_HOME_PATH;
     } catch (error) {
       clearProfile();
       updateLoginMessage(errorBox, mapAuthError(error));
+      updateLoginMessage(hintBox, await resolveInvalidCredentialsHint(email, error));
       card.classList.remove("is-error");
       void card.offsetWidth;
       card.classList.add("is-error");
@@ -201,16 +248,23 @@ async function handleLoginPageAuthState() {
       return;
     }
 
-    const role = await getAdminRole(user);
-    if (!isAdminRole(role)) {
+    const profile = await getUserProfile(user);
+    const role = normalizeRole(profile && profile.role);
+
+    if (!profile) {
       await supabase.auth.signOut();
       clearProfile();
-      setNotice("Access denied");
+      setNotice("Profile not found");
       return;
     }
 
-    setProfile(user, role);
-    window.location.href = "dashboard.html";
+    if (!isAdminRole(role)) {
+      await rejectNonAdminAccess("Access denied. Only admin role can open the admin panel.");
+      return;
+    }
+
+    setProfile(user, role, profile);
+    window.location.href = ADMIN_HOME_PATH;
   } catch (error) {
     clearProfile();
   }

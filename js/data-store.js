@@ -42,6 +42,24 @@
     };
   }
 
+  function normalizeRole(role) {
+    const normalized = String(role || "").trim().toLowerCase();
+    if (normalized === "admin") {
+      return "admin";
+    }
+    if (normalized === "moderator") {
+      return "moderator";
+    }
+    return "user";
+  }
+
+  function normalizeUser(item) {
+    return {
+      ...item,
+      role: normalizeRole(item && item.role)
+    };
+  }
+
   function seed() {
     if (read(KEYS.designs).length === 0) {
       write(KEYS.designs, []);
@@ -55,11 +73,16 @@
           id: uid("usr"),
           name: "Anand Singh",
           email: "admin@ajartivo.com",
-          role: "Super Admin",
+          role: "admin",
           status: "Active",
           createdAt: new Date().toISOString()
         }
       ]);
+    } else {
+      write(
+        KEYS.users,
+        read(KEYS.users).map(normalizeUser)
+      );
     }
 
     if (read(KEYS.payments).length === 0) {
@@ -148,17 +171,52 @@
       return items;
     },
     getUsers: function () {
-      return read(KEYS.users);
+      return read(KEYS.users).map(normalizeUser);
     },
     addUser: function (user) {
       const items = read(KEYS.users);
       items.unshift({
         id: uid("usr"),
         createdAt: new Date().toISOString(),
-        ...user
+        ...user,
+        role: normalizeRole(user && user.role)
       });
       write(KEYS.users, items);
       return items;
+    },
+    updateCurrentAdminProfile: function (payload, session) {
+      const activeSession = session || {};
+      const targetEmail = String(activeSession.email || "").trim().toLowerCase();
+      const nextName = String(payload && payload.name || "").trim();
+      if (!nextName) {
+        throw new Error("Please enter a valid name.");
+      }
+
+      const items = read(KEYS.users);
+      const matchIndex = items.findIndex(function (item) {
+        return String(item && item.email || "").trim().toLowerCase() === targetEmail;
+      });
+
+      if (matchIndex >= 0) {
+        items[matchIndex] = {
+          ...items[matchIndex],
+          name: nextName
+        };
+      } else {
+        items.unshift({
+          id: String(activeSession.id || uid("usr")).trim(),
+          name: nextName,
+          email: targetEmail,
+          role: normalizeRole(activeSession.role || "admin"),
+          status: "Active",
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      write(KEYS.users, items);
+      return items.find(function (item) {
+        return String(item && item.email || "").trim().toLowerCase() === targetEmail;
+      }) || null;
     },
     deleteUser: function (id) {
       const items = read(KEYS.users).filter(function (item) {

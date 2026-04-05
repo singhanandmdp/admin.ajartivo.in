@@ -34,6 +34,7 @@
       </div>
 
       <div class="status-pill status-danger login-error" id="loginError" style="display: none;"></div>
+      <div class="login-note login-hint" id="loginHint" style="display: none;"></div>
 
       <form id="loginForm" class="form-grid login-form" novalidate>
         <div class="field full">
@@ -66,7 +67,7 @@
       </form>
 
       <p class="login-note">
-        After a successful login you will be redirected directly to the dashboard.
+        After a successful login, profiles with <code>role = admin</code> open the admin panel. Other roles are redirected to the regular dashboard. If the email is approved but login still fails, verify the password in Supabase Authentication.
       </p>
     </section>
   </main>

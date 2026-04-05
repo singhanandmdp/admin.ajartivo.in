@@ -9,6 +9,47 @@
     }
   }
 
+  function setSession(session) {
+    if (!session) {
+      localStorage.removeItem(PROFILE_KEY);
+      dispatchSessionUpdate(null);
+      return null;
+    }
+
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(session));
+    dispatchSessionUpdate(session);
+    return session;
+  }
+
+  function updateSession(patch) {
+    const current = getSession() || {};
+    const next = {
+      ...current,
+      ...patch
+    };
+
+    return setSession(next);
+  }
+
+  function getDisplayName(session) {
+    const activeSession = session || getSession();
+    return String(
+      activeSession && (
+        activeSession.name ||
+        activeSession.username ||
+        activeSession.email
+      ) || "Admin"
+    ).trim();
+  }
+
+  function dispatchSessionUpdate(session) {
+    window.dispatchEvent(
+      new CustomEvent("ajartivo:session-updated", {
+        detail: session
+      })
+    );
+  }
+
   function bindLogout() {
     const buttons = document.querySelectorAll("[data-action='logout']");
     buttons.forEach(function (button) {
@@ -88,7 +129,10 @@
     setActiveMenu: setActiveMenu,
     formatCurrency: formatCurrency,
     formatDate: formatDate,
-    getSession: getSession
+    getSession: getSession,
+    setSession: setSession,
+    updateSession: updateSession,
+    getDisplayName: getDisplayName
   };
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -11,13 +11,23 @@ window.AdminData = {
   addPayment: addPayment,
   getUsers: getUsers,
   addUser: addUser,
-  deleteUser: deleteUser
+  deleteUser: deleteUser,
+  updateCurrentAdminProfile: updateCurrentAdminProfile,
+  updateCurrentAdminPassword: updateCurrentAdminPassword
 };
 
 async function getDesigns() {
-  const { data, error } = await client.from("products").select("*");
-  if (error) throw toReadableError(error);
-  return (Array.isArray(data) ? data : []).map(normalizeDesign).sort(sortByCreatedAtDesc);
+  let result = await client.from("designs").select("*");
+
+  if (result.error || !Array.isArray(result.data) || !result.data.length) {
+    const fallback = await client.from("designs").select("*");
+    if (!fallback.error) {
+      result = fallback;
+    }
+  }
+
+  if (result.error) throw toReadableError(result.error);
+  return (Array.isArray(result.data) ? result.data : []).map(normalizeDesign).sort(sortByCreatedAtDesc);
 }
 
 async function addDesign(payload) {
@@ -64,12 +74,12 @@ async function updateDesign(id, payload) {
 
 async function deleteDesign(id) {
   await requireAuthenticatedUser();
-  const { error } = await client.from("products").delete().eq("id", id);
+  const { error } = await client.from("designs").delete().eq("id", id);
   if (error) throw toReadableError(error);
 }
 
 async function incrementDesignDownloads(id, quantity) {
-  const { data, error } = await client.from("products").select("downloads").eq("id", id).single();
+  const { data, error } = await client.from("designs").select("downloads").eq("id", id).single();
   if (error) throw toReadableError(error);
 
   const nextCount = Number(data && data.downloads || 0) + Math.max(1, Number(quantity || 1));
@@ -79,7 +89,7 @@ async function incrementDesignDownloads(id, quantity) {
 
   try {
     payload.updated_at = new Date().toISOString();
-    const { error: updateError } = await client.from("products").update(payload).eq("id", id);
+    const { error: updateError } = await client.from("designs").update(payload).eq("id", id);
     if (updateError) throw updateError;
   } catch (error) {
     if (!isMissingColumnError(error)) {
@@ -87,7 +97,7 @@ async function incrementDesignDownloads(id, quantity) {
     }
 
     const { error: fallbackError } = await client
-      .from("products")
+      .from("designs")
       .update({ downloads: nextCount })
       .eq("id", id);
 
@@ -115,7 +125,7 @@ async function addPayment(payload) {
 }
 
 async function getUsers() {
-  const { data, error } = await client.from("users").select("*");
+  const { data, error } = await client.from("profiles").select("*");
   if (error) throw toReadableError(error);
   return (Array.isArray(data) ? data : []).map(normalizeUser).sort(sortByCreatedAtDesc);
 }
@@ -127,31 +137,95 @@ async function addUser(payload) {
     id: crypto.randomUUID(),
     name: cleanText(payload && payload.name),
     email: cleanText(payload && payload.email).toLowerCase(),
-    role: cleanText(payload && payload.role),
+    role: normalizeProfileRole(payload && payload.role),
     status: cleanText(payload && payload.status) || "Active",
     created_at: new Date().toISOString()
   };
 
-  const { data, error } = await client.from("users").insert(record).select("*").single();
+  const { data, error } = await client.from("profiles").insert(record).select("*").single();
   if (error) throw toReadableError(error);
   return normalizeUser(data);
 }
 
 async function deleteUser(id) {
   await requireAuthenticatedUser();
-  const { error } = await client.from("users").delete().eq("id", id);
+  const { error } = await client.from("profiles").delete().eq("id", id);
   if (error) throw toReadableError(error);
 }
 
+async function updateCurrentAdminProfile(payload) {
+  const user = await requireAuthenticatedUser();
+  const nextName = cleanText(payload && payload.name);
+  if (!nextName) {
+    throw new Error("Please enter a valid name.");
+  }
+
+  const email = cleanText(user && user.email).toLowerCase();
+  const existing = await findCurrentAdminRecord(user);
+  const currentRole = normalizeProfileRole(existing && existing.role) || "admin";
+  const currentStatus = cleanText(existing && existing.status) || "Active";
+
+  const { error: authError } = await client.auth.updateUser({
+    data: {
+      display_name: nextName,
+      full_name: nextName
+    }
+  });
+
+  if (authError) {
+    throw toReadableError(authError);
+  }
+
+  if (existing) {
+    let query = client.from("profiles").update({ name: nextName });
+    query = cleanText(existing.id)
+      ? query.eq("id", cleanText(existing.id))
+      : query.eq("email", email);
+
+    const { data, error } = await query.select("*").maybeSingle();
+    if (error) throw toReadableError(error);
+    return normalizeUser(data || { ...existing, name: nextName });
+  }
+
+  const record = {
+    id: String(user && user.id || crypto.randomUUID()),
+    name: nextName,
+    email: email,
+    role: currentRole,
+    status: currentStatus,
+    created_at: new Date().toISOString()
+  };
+
+  const { data, error } = await client.from("profiles").insert(record).select("*").single();
+  if (error) throw toReadableError(error);
+  return normalizeUser(data);
+}
+
+async function updateCurrentAdminPassword(payload) {
+  await requireAuthenticatedUser();
+
+  const nextPassword = String(payload && payload.password || "");
+  if (nextPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters long.");
+  }
+
+  const { data, error } = await client.auth.updateUser({
+    password: nextPassword
+  });
+
+  if (error) throw toReadableError(error);
+  return data && data.user ? data.user : null;
+}
+
 async function insertProductRecord(record) {
-  const { data, error } = await client.from("products").insert(record).select("*").single();
+  const { data, error } = await client.from("designs").insert(record).select("*").single();
   if (error) throw error;
   return data;
 }
 
 async function updateProductRecord(id, record) {
   const { data, error } = await client
-    .from("products")
+    .from("designs")
     .update(record)
     .eq("id", id)
     .select("*")
@@ -168,6 +242,26 @@ async function requireAuthenticatedUser() {
     throw new Error("Admin session expired. Please log in again.");
   }
   return data.user;
+}
+
+async function findCurrentAdminRecord(user) {
+  const userId = cleanText(user && user.id);
+  const email = cleanText(user && user.email).toLowerCase();
+
+  if (userId) {
+    const byId = await client.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (!byId.error && byId.data) {
+      return byId.data;
+    }
+  }
+
+  if (email) {
+    const byEmail = await client.from("profiles").select("*").eq("email", email).maybeSingle();
+    if (byEmail.error) throw toReadableError(byEmail.error);
+    return byEmail.data || null;
+  }
+
+  return null;
 }
 
 function normalizeDesign(record) {
@@ -190,11 +284,14 @@ function normalizeDesign(record) {
     price: Number(item.price || item.Price || 0),
     Price: Number(item.Price || item.price || 0),
     description: cleanText(item.description),
-    previewUrl: cleanText(item.previewUrl || item.preview_url || item.image),
-    image: cleanText(item.image || item.previewUrl || item.preview_url),
-    downloadUrl: cleanText(item.downloadUrl || item.download_link || item.download),
-    download: cleanText(item.download || item.downloadUrl || item.download_link),
-    download_link: cleanText(item.download_link || item.downloadUrl || item.download),
+    tags: normalizeTags(item.tags, item.title || item.name),
+    previewUrl: cleanText(item.previewUrl || item.preview_url || item.image_url || item.image),
+    image: cleanText(item.image || item.image_url || item.previewUrl || item.preview_url),
+    image_url: cleanText(item.image_url || item.image || item.previewUrl || item.preview_url),
+    downloadUrl: cleanText(item.downloadUrl || item.download_link || item.file_url || item.download),
+    download: cleanText(item.download || item.downloadUrl || item.download_link || item.file_url),
+    download_link: cleanText(item.download_link || item.file_url || item.downloadUrl || item.download),
+    file_url: cleanText(item.file_url || item.download_link || item.downloadUrl || item.download),
     extraImages: extraImages.filter(Boolean),
     gallery: extraImages.filter(Boolean),
     downloadCount: Number(item.downloadCount || item.downloads || 0),
@@ -252,6 +349,7 @@ function buildBaseProductRecord(normalized) {
     price: normalized.price,
     is_paid: normalized.paymentMode === "paid",
     description: normalized.description,
+    tags: normalized.tags,
     image: normalized.previewUrl,
     download_link: normalized.downloadUrl,
     downloads: Number(normalized.downloadCount || 0)
@@ -294,12 +392,23 @@ function normalizeUser(record) {
   return {
     ...item,
     id: String(item.id || "").trim(),
-    name: cleanText(item.name) || "Admin User",
+    name: cleanText(item.name) || "User",
     email: cleanText(item.email).toLowerCase(),
-    role: cleanText(item.role) || "viewer",
+    role: normalizeProfileRole(item.role),
     status: cleanText(item.status) || "Active",
     createdAt: cleanText(item.createdAt || item.created_at) || new Date().toISOString()
   };
+}
+
+function normalizeProfileRole(role) {
+  const normalized = cleanText(role).toLowerCase();
+  if (normalized === "admin") {
+    return "admin";
+  }
+  if (normalized === "moderator") {
+    return "moderator";
+  }
+  return "user";
 }
 
 function resolvePaymentMode(item) {
@@ -322,6 +431,30 @@ function getCreatedAtMs(item) {
 
 function cleanText(value) {
   return String(value || "").trim();
+}
+
+function normalizeTags(value, fallbackTitle) {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+    ? value.split(",")
+    : [];
+
+  const tags = source
+    .map(function (item) {
+      return cleanText(item);
+    })
+    .filter(Boolean)
+    .filter(function (item, index, list) {
+      return list.indexOf(item) === index;
+    });
+
+  if (tags.length) {
+    return tags;
+  }
+
+  const fallback = cleanText(fallbackTitle);
+  return fallback ? [fallback] : [];
 }
 
 function isMissingColumnError(error) {

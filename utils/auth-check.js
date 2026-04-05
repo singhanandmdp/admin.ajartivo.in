@@ -1,16 +1,25 @@
-import { supabase, getCurrentUser, getAdminRole, isAdminRole, normalizeEmail } from "../js/supabase-auth.js";
+import { supabase, getCurrentUser, getUserProfile, isAdminRole, normalizeEmail, normalizeRole } from "../js/supabase-auth.js";
 
 const PROFILE_KEY = "ajartivo_admin_profile";
 const NOTICE_KEY = "ajartivo_auth_notice";
 
-function setProfile(user, role) {
+function resolveProfileName(user, profile) {
+  const profileName = String(profile && profile.name || "").trim();
+  const metadataName = String(
+    user && user.user_metadata && (user.user_metadata.display_name || user.user_metadata.full_name) || ""
+  ).trim();
+  return profileName || metadataName || normalizeEmail(user && user.email);
+}
+
+function setProfile(user, role, profile) {
   localStorage.setItem(
     PROFILE_KEY,
     JSON.stringify({
       id: String(user && user.id || ""),
       username: normalizeEmail(user.email),
+      name: resolveProfileName(user, profile),
       email: normalizeEmail(user.email),
-      role: String(role || "").trim().toLowerCase() || "admin",
+      role: normalizeRole(role),
       isLoggedIn: true,
       loggedInAt: new Date().toISOString()
     })
@@ -23,7 +32,8 @@ function clearProfile() {
 
 function denyAndRedirect() {
   sessionStorage.setItem(NOTICE_KEY, "Access denied");
-  window.location.href = "index.html";
+  alert("Access Denied");
+  window.location.href = "/index.html";
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -44,16 +54,17 @@ async function verifyAdminAccess() {
       return;
     }
 
-    const role = await getAdminRole(user);
+    const profile = await getUserProfile(user);
+    const role = normalizeRole(profile && profile.role);
 
-    if (!isAdminRole(role)) {
+    if (!profile || !isAdminRole(role)) {
       clearProfile();
       await supabase.auth.signOut();
       denyAndRedirect();
       return;
     }
 
-    setProfile(user, role);
+    setProfile(user, role, profile);
   } catch (error) {
     clearProfile();
     window.location.href = "index.html";

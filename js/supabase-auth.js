@@ -29,14 +29,14 @@ export async function getUserProfile(user) {
   const email = normalizeEmail(user && user.email);
 
   if (userId) {
-    const byId = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+    const byId = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
     if (!byId.error && byId.data) {
       return byId.data;
     }
   }
 
   if (email) {
-    const byEmail = await supabase.from("users").select("*").eq("email", email).maybeSingle();
+    const byEmail = await supabase.from("profiles").select("*").eq("email", email).maybeSingle();
     if (byEmail.error) {
       throw byEmail.error;
     }
@@ -48,10 +48,20 @@ export async function getUserProfile(user) {
 
 export async function getAdminRole(user) {
   const profile = await getUserProfile(user);
-  return profile && profile.role ? String(profile.role).trim().toLowerCase() : "";
+  return normalizeRole(profile && profile.role);
+}
+
+export function normalizeRole(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  if (normalized === "admin") {
+    return "admin";
+  }
+  if (normalized === "moderator") {
+    return "moderator";
+  }
+  return "user";
 }
 
 export function isAdminRole(role) {
-  const normalized = String(role || "").trim().toLowerCase();
-  return normalized === "admin" || normalized === "super admin" || normalized === "super_admin";
+  return normalizeRole(role) === "admin";
 }

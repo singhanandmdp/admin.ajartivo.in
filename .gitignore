@@ -1,0 +1,13 @@
+# Dependency directories
+node_modules/
+
+# dotenv environment files
+.env
+.env.*
+
+# Local backups and archived project copies
+backup/
+firebase-backup/
+*.bak
+*.backup
+*.tmp

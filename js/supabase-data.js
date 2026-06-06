@@ -132,9 +132,9 @@ async function addPayment(payload) {
 }
 
 async function getUsers() {
-  const { data, error } = await client.from("profiles").select("*");
-  if (error) throw toReadableError(error);
-  return (Array.isArray(data) ? data : []).map(normalizeUser).sort(sortByCreatedAtDesc);
+  const response = await requestBackendJson(`/admin/users?limit=1000`);
+  const users = Array.isArray(response && response.users) ? response.users : [];
+  return users.map(normalizeUser).sort(sortByCreatedAtDesc);
 }
 
 async function addUser(payload) {

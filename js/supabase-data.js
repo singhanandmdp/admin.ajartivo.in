@@ -132,7 +132,7 @@ async function addPayment(payload) {
 }
 
 async function getUsers() {
-  const response = await requestBackendJson(`/admin/users?limit=1000`);
+  const response = await requestBackendJson(`/admin/users?limit=1000`, { auth: false });
   const users = Array.isArray(response && response.users) ? response.users : [];
   return users.map(normalizeUser).sort(sortByCreatedAtDesc);
 }

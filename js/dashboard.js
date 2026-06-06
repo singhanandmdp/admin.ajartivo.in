@@ -92,18 +92,13 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   async function updateProfileSafe(payload) {
-    const session = getActiveSession() || {};
     const store = window.AdminData || { connected: false };
 
     if (store.connected && typeof store.updateCurrentAdminProfile === "function") {
       return await store.updateCurrentAdminProfile(payload);
     }
 
-    if (window.DataStore && typeof window.DataStore.updateCurrentAdminProfile === "function") {
-      return window.DataStore.updateCurrentAdminProfile(payload, session);
-    }
-
-    throw new Error("Profile update is not available right now.");
+    throw new Error("Supabase profile update is not available right now.");
   }
 
   async function updatePasswordSafe(payload) {
@@ -231,25 +226,25 @@ document.addEventListener("DOMContentLoaded", async function () {
   async function getDesignsSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getDesigns === "function") {
-      try {
-        return await store.getDesigns();
-      } catch (error) {
-        return window.DataStore.getDesigns();
-      }
+      return await store.getDesigns();
     }
-    return window.DataStore.getDesigns();
+    throw new Error("Supabase design data is not available.");
   }
 
   async function getPaymentsSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getPayments === "function") {
-      try {
-        return await store.getPayments();
-      } catch (error) {
-        return window.DataStore.getPayments();
-      }
+      return await store.getPayments();
     }
-    return window.DataStore.getPayments();
+    throw new Error("Supabase payment data is not available.");
+  }
+
+  async function getPurchasesSafe() {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getPurchases === "function") {
+      return await store.getPurchases();
+    }
+    return [];
   }
 
   function escapeHtml(value) {
@@ -261,7 +256,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       .replace(/'/g, "&#39;");
   }
 
-  function aggregatePerformance(designs, payments) {
+  function aggregatePerformance(designs, purchases) {
     const designMap = {};
 
     designs.forEach(function (design) {
@@ -274,22 +269,19 @@ document.addEventListener("DOMContentLoaded", async function () {
       };
     });
 
-    payments.forEach(function (payment) {
-      const quantity = Math.max(1, Number(payment.quantity || 1));
-      const designId = payment.designId || "manual_" + (payment.designName || "Manual");
+    purchases.forEach(function (purchase) {
+      const designId = purchase.designId || "manual_" + (purchase.designName || "Manual");
       if (!designMap[designId]) {
         designMap[designId] = {
           id: designId,
-          name: payment.designName || "Manual Entry",
+          name: purchase.designName || "Manual Entry",
           downloads: 0,
           revenue: 0
         };
       }
 
-      if (payment.status === "Paid") {
-        designMap[designId].downloads += quantity;
-        designMap[designId].revenue += Number(payment.amount || 0);
-      }
+      designMap[designId].downloads += 1;
+      designMap[designId].revenue += Number(purchase.amount || 0);
     });
 
     return Object.values(designMap)
@@ -306,14 +298,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       });
   }
 
-  function renderStats(designs, users, payments, performance) {
-    const paidPayments = payments.filter(function (item) {
-      return item.status === "Paid";
-    });
+  function renderStats(designs, users, purchases, performance) {
+    const purchaseRecords = Array.isArray(purchases) ? purchases : [];
     const adminUsers = users.filter(function (item) {
       return String(item && item.role || "").trim().toLowerCase() === "admin";
     });
-    const revenue = paidPayments.reduce(function (sum, item) {
+    const revenue = purchaseRecords.reduce(function (sum, item) {
       return sum + Number(item.amount || 0);
     }, 0);
     const totalDownloads = performance.reduce(function (sum, item) {
@@ -323,9 +313,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     const stats = [
       { title: "Total Designs", value: designs.length, hint: "All uploaded assets" },
       { title: "Admin Users", value: adminUsers.length, hint: "Profiles with admin role" },
-      { title: "Current Payments", value: payments.length, hint: "Stored payment entries" },
-      { title: "Revenue", value: window.AdminApp.formatCurrency(revenue), hint: "Paid sales only" },
-      { title: "Total Downloads", value: totalDownloads, hint: "Paid download count" }
+      { title: "Purchase Records", value: purchaseRecords.length, hint: "Live Supabase orders" },
+      { title: "Revenue", value: window.AdminApp.formatCurrency(revenue), hint: "Completed purchases" },
+      { title: "Total Downloads", value: totalDownloads, hint: "Design download count" }
     ];
 
     const statsRow = document.getElementById("statsRow");
@@ -430,29 +420,19 @@ document.addEventListener("DOMContentLoaded", async function () {
       .join("");
   }
 
-  function renderPaymentSnapshot(payments) {
-    const paid = payments.filter(function (item) {
-      return item.status === "Paid";
-    });
-    const pending = payments.filter(function (item) {
-      return item.status === "Pending";
-    });
-    const failed = payments.filter(function (item) {
-      return item.status === "Failed";
-    });
-    const paidRevenue = paid.reduce(function (sum, item) {
+  function renderPaymentSnapshot(purchases, payments) {
+    const purchaseRecords = Array.isArray(purchases) ? purchases : [];
+    const manualPayments = Array.isArray(payments) ? payments : [];
+    const paidRevenue = purchaseRecords.reduce(function (sum, item) {
       return sum + Number(item.amount || 0);
     }, 0);
-    const paidDownloads = paid.reduce(function (sum, item) {
-      return sum + Math.max(1, Number(item.quantity || 1));
-    }, 0);
+    const paidDownloads = purchaseRecords.length;
 
     document.getElementById("paymentSnapshot").innerHTML = [
-      { label: "Paid Orders", value: paid.length },
-      { label: "Pending Orders", value: pending.length },
-      { label: "Failed Orders", value: failed.length },
+      { label: "Purchase Records", value: purchaseRecords.length },
+      { label: "Manual Payments", value: manualPayments.length },
       { label: "Sold Amount", value: window.AdminApp.formatCurrency(paidRevenue) },
-      { label: "Downloaded Qty", value: paidDownloads }
+      { label: "Purchased Designs", value: paidDownloads }
     ]
       .map(function (item) {
         return (
@@ -465,14 +445,25 @@ document.addEventListener("DOMContentLoaded", async function () {
       .join("");
   }
 
-  const designs = await getDesignsSafe();
-  const users = window.AdminData && typeof window.AdminData.getUsers === "function"
-    ? await window.AdminData.getUsers().catch(function () { return window.DataStore.getUsers(); })
-    : window.DataStore.getUsers();
-  const payments = await getPaymentsSafe();
-  const performance = aggregatePerformance(designs, payments);
+  let designs = [];
+  let users = [];
+  let payments = [];
+  let purchases = [];
 
-  renderStats(designs, users, payments, performance);
+  try {
+    designs = await getDesignsSafe();
+    users = window.AdminData && typeof window.AdminData.getUsers === "function"
+      ? await window.AdminData.getUsers()
+      : [];
+    payments = await getPaymentsSafe();
+    purchases = await getPurchasesSafe();
+  } catch (error) {
+    console.error("[Admin Dashboard]", error);
+  }
+
+  const performance = aggregatePerformance(designs, purchases);
+
+  renderStats(designs, users, purchases, performance);
   renderRecentUploads(designs, performance);
   renderBarChart(
     "salesChart",
@@ -495,7 +486,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     "No downloads recorded yet."
   );
   renderTopPerformance(performance);
-  renderPaymentSnapshot(payments);
+  renderPaymentSnapshot(purchases, payments);
 
   bindPasswordVisibilityToggles();
   bindProfileForms();

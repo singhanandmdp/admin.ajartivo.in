@@ -38,41 +38,27 @@ document.addEventListener("DOMContentLoaded", function () {
   async function getUsersSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getUsers === "function") {
-      try {
-        return await store.getUsers();
-      } catch (error) {
-        return window.DataStore.getUsers();
-      }
+      return await store.getUsers();
     }
-    return window.DataStore.getUsers();
+    throw new Error("Supabase users data is not available.");
   }
 
   async function addUserSafe(payload) {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.addUser === "function") {
-      try {
-        await store.addUser(payload);
-        return;
-      } catch (error) {
-        window.DataStore.addUser(payload);
-        return;
-      }
+      await store.addUser(payload);
+      return;
     }
-    window.DataStore.addUser(payload);
+    throw new Error("Supabase users data is not available.");
   }
 
   async function deleteUserSafe(id) {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.deleteUser === "function") {
-      try {
-        await store.deleteUser(id);
-        return;
-      } catch (error) {
-        window.DataStore.deleteUser(id);
-        return;
-      }
+      await store.deleteUser(id);
+      return;
     }
-    window.DataStore.deleteUser(id);
+    throw new Error("Supabase users data is not available.");
   }
 
   function render() {

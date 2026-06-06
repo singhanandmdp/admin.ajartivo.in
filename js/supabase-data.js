@@ -8,6 +8,7 @@ window.AdminData = {
   deleteDesign: deleteDesign,
   incrementDesignDownloads: incrementDesignDownloads,
   getPayments: getPayments,
+  getPurchases: getPurchases,
   addPayment: addPayment,
   getUsers: getUsers,
   addUser: addUser,
@@ -109,6 +110,12 @@ async function getPayments() {
   const { data, error } = await client.from("payments").select("*");
   if (error) throw toReadableError(error);
   return (Array.isArray(data) ? data : []).map(normalizePayment).sort(sortByCreatedAtDesc);
+}
+
+async function getPurchases() {
+  const { data, error } = await client.from("purchases").select("*");
+  if (error) throw toReadableError(error);
+  return (Array.isArray(data) ? data : []).map(normalizePurchase).sort(sortByCreatedAtDesc);
 }
 
 async function addPayment(payload) {
@@ -373,6 +380,20 @@ function normalizePayment(record) {
   };
 }
 
+function normalizePurchase(record) {
+  const item = record || {};
+  return {
+    ...item,
+    id: String(item.id || "").trim(),
+    userId: cleanText(item.user_id || item.userId),
+    designId: cleanText(item.design_id || item.designId),
+    paymentId: cleanText(item.payment_id || item.paymentId),
+    amount: Number(item.amount || 0),
+    designName: cleanText(item.design_name || item.designName),
+    createdAt: cleanText(item.created_at || item.createdAt) || new Date().toISOString()
+  };
+}
+
 function mapPaymentForInsert(payload) {
   const item = normalizePayment(payload);
   return {
@@ -389,13 +410,42 @@ function mapPaymentForInsert(payload) {
 
 function normalizeUser(record) {
   const item = record || {};
+  const premiumExpiry = cleanText(item.premium_expiry);
+  const premiumExpiryMs = premiumExpiry ? new Date(premiumExpiry).getTime() : 0;
+  const premiumActive = Boolean((item.is_premium === true || item.premium_active === true) && premiumExpiryMs && premiumExpiryMs > Date.now());
+  const freeDownloadCount = Number(item.free_download_count || 0) || 0;
+  const weeklyPremiumDownloadCount = Number(item.weekly_premium_download_count || 0) || 0;
+  const freeDownloadRemaining = Number.isFinite(Number(item.free_download_remaining))
+    ? Number(item.free_download_remaining)
+    : Math.max(0, 5 - freeDownloadCount);
+  const weeklyPremiumRemaining = Number.isFinite(Number(item.weekly_premium_remaining))
+    ? Number(item.weekly_premium_remaining)
+    : Math.max(0, 2 - weeklyPremiumDownloadCount);
+  const isBanned = item.is_banned === true || String(item.status || "").trim().toLowerCase() === "blocked";
+  const activePlanId = cleanText(item.active_plan_id || item.plan_id);
+  const activePlanName = cleanText(item.active_plan_name || item.plan_name) || (premiumActive ? "Premium" : "Free");
+
   return {
     ...item,
     id: String(item.id || "").trim(),
     name: cleanText(item.name) || "User",
     email: cleanText(item.email).toLowerCase(),
     role: normalizeProfileRole(item.role),
-    status: cleanText(item.status) || "Active",
+    status: isBanned ? "Blocked" : (cleanText(item.status) || "Active"),
+    is_banned: isBanned,
+    is_premium: item.is_premium === true,
+    premium_active: premiumActive,
+    premium_expiry: premiumExpiry,
+    plan_id: activePlanId,
+    plan_name: activePlanName,
+    active_plan_id: activePlanId,
+    active_plan_name: activePlanName,
+    free_download_count: freeDownloadCount,
+    free_download_remaining: freeDownloadRemaining,
+    weekly_premium_download_count: weeklyPremiumDownloadCount,
+    weekly_premium_remaining: weeklyPremiumRemaining,
+    weekly_reset_date: cleanText(item.weekly_reset_date),
+    premium_badge: premiumActive ? "Premium Active" : "Free Member",
     createdAt: cleanText(item.createdAt || item.created_at) || new Date().toISOString()
   };
 }

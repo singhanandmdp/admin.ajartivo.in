@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   const form = document.getElementById("paymentForm");
   const table = document.getElementById("paymentsTable");
+  const purchasesTable = document.getElementById("purchasesTable");
   const revenueBadge = document.getElementById("revenueBadge");
   const designSelect = document.getElementById("designId");
   const quantityInput = document.getElementById("quantity");
@@ -13,58 +14,44 @@ document.addEventListener("DOMContentLoaded", async function () {
   async function getDesignsSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getDesigns === "function") {
-      try {
-        return await store.getDesigns();
-      } catch (error) {
-        return window.DataStore.getDesigns();
-      }
+      return await store.getDesigns();
     }
-    return window.DataStore.getDesigns();
+    throw new Error("Supabase designs data is not available.");
   }
 
   async function getPaymentsSafe() {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.getPayments === "function") {
-      try {
-        return await store.getPayments();
-      } catch (error) {
-        return window.DataStore.getPayments();
-      }
+      return await store.getPayments();
     }
-    return window.DataStore.getPayments();
+    throw new Error("Supabase payment data is not available.");
+  }
+
+  async function getPurchasesSafe() {
+    const store = window.AdminData || { connected: false };
+    if (store.connected && typeof store.getPurchases === "function") {
+      return await store.getPurchases();
+    }
+    return [];
   }
 
   async function addPaymentSafe(payload) {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.addPayment === "function") {
-      try {
-        await store.addPayment(payload);
-        return;
-      } catch (error) {
-        window.DataStore.addPayment(payload);
-        return;
-      }
+      await store.addPayment(payload);
+      return;
     }
-    window.DataStore.addPayment(payload);
+    throw new Error("Supabase payment data is not available.");
   }
 
   async function incrementDesignDownloadsSafe(id, quantity) {
     const store = window.AdminData || { connected: false };
     if (store.connected && typeof store.incrementDesignDownloads === "function") {
-      try {
-        await store.incrementDesignDownloads(id, quantity);
-        return;
-      } catch (error) {
-        if (window.DataStore.incrementDesignDownloads) {
-          window.DataStore.incrementDesignDownloads(id, quantity);
-        }
-        return;
-      }
+      await store.incrementDesignDownloads(id, quantity);
+      return;
     }
 
-    if (window.DataStore.incrementDesignDownloads) {
-      window.DataStore.incrementDesignDownloads(id, quantity);
-    }
+    throw new Error("Supabase download tracking is not available.");
   }
 
   function statusClass(status) {
@@ -147,9 +134,52 @@ document.addEventListener("DOMContentLoaded", async function () {
       paidPayments.length;
   }
 
-  const designs = await getDesignsSafe();
+  function renderPurchases(purchases, designs) {
+    if (!purchasesTable) {
+      return;
+    }
+
+    const designMap = {};
+    (Array.isArray(designs) ? designs : []).forEach(function (design) {
+      designMap[String(design && design.id || "").trim()] = design && design.name ? design.name : "Design";
+    });
+
+    if (!Array.isArray(purchases) || purchases.length === 0) {
+      purchasesTable.innerHTML = "<tr><td colspan='5' class='empty'>No live purchase records available.</td></tr>";
+      return;
+    }
+
+    purchasesTable.innerHTML = purchases
+      .map(function (item) {
+        const designLabel = designMap[String(item.designId || "").trim()] || item.designName || item.designId || "Design";
+        return (
+          "<tr>" +
+          "<td>" + designLabel + "</td>" +
+          "<td>" + (item.userId || "-") + "</td>" +
+          "<td>" + (item.paymentId || "-") + "</td>" +
+          "<td>" + window.AdminApp.formatCurrency(item.amount || 0) + "</td>" +
+          "<td>" + window.AdminApp.formatDate(item.createdAt) + "</td>" +
+          "</tr>"
+        );
+      })
+      .join("");
+  }
+
+  let designs = [];
+  let payments = [];
+  let purchases = [];
+
+  try {
+    designs = await getDesignsSafe();
+    payments = await getPaymentsSafe();
+    purchases = await getPurchasesSafe();
+  } catch (error) {
+    console.error("[Admin Payments]", error);
+  }
+
   populateDesigns(designs);
-  render(await getPaymentsSafe());
+  render(payments);
+  renderPurchases(purchases, designs);
   updateAmount(designs);
 
   designSelect.addEventListener("change", function () {
@@ -195,6 +225,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     quantityInput.value = "1";
     amountInput.value = "";
     updateAmount(designs);
-    render(await getPaymentsSafe());
+    payments = await getPaymentsSafe();
+    render(payments);
+    purchases = await getPurchasesSafe();
+    renderPurchases(purchases, designs);
   });
 });

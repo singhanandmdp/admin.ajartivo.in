@@ -11,7 +11,10 @@ window.AdminData = {
   getPurchases: getPurchases,
   addPayment: addPayment,
   getUsers: getUsers,
+  getPlans: getPlans,
+  getUserUsage: getUserUsage,
   addUser: addUser,
+  updateUser: updateUser,
   deleteUser: deleteUser,
   updateCurrentAdminProfile: updateCurrentAdminProfile,
   updateCurrentAdminPassword: updateCurrentAdminPassword
@@ -118,6 +121,35 @@ async function getPurchases() {
   return (Array.isArray(data) ? data : []).map(normalizePurchase).sort(sortByCreatedAtDesc);
 }
 
+async function getUserUsage(userId) {
+  const id = String(userId || "").trim();
+  if (!id) return { downloads_used_month: 0, ai_generations_used_today: 0 };
+
+  const now = new Date();
+  const monthKey = now.getUTCFullYear() + "-" + String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dayKey = now.toISOString().slice(0, 10);
+
+  const { data, error } = await client.from("user_usage").select("*").eq("user_id", id).eq("month_key", monthKey);
+  if (error) {
+    if (isMissingRelationError(error)) {
+      return { downloads_used_month: 0, ai_generations_used_today: 0 };
+    }
+    throw toReadableError(error);
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const downloadsUsedMonth = rows.reduce(function (total, row) {
+    return total + (Number(row && row.downloads_used || 0) || 0);
+  }, 0);
+  const todayRow = rows.find(function (r) { return String(r && r.day_key || "") === dayKey; });
+  const aiUsedToday = Number(todayRow && todayRow.ai_generations_used || 0) || 0;
+
+  return {
+    downloads_used_month: downloadsUsedMonth,
+    ai_generations_used_today: aiUsedToday
+  };
+}
+
 async function addPayment(payload) {
   await requireAuthenticatedUser();
 
@@ -132,9 +164,37 @@ async function addPayment(payload) {
 }
 
 async function getUsers() {
-  const response = await requestBackendJson(`/admin/users?limit=1000`, { auth: false });
-  const users = Array.isArray(response && response.users) ? response.users : [];
-  return users.map(normalizeUser).sort(sortByCreatedAtDesc);
+  const { data, error } = await client
+    .from("profiles")
+    .select("*");
+
+  if (error) {
+    throw toReadableError(error);
+  }
+
+  return (Array.isArray(data) ? data : [])
+    .map(normalizeUser)
+    .sort(sortByCreatedAtDesc);
+}
+
+async function getPlans() {
+  const { data, error } = await client.from("plans_master").select("*");
+  if (error) throw toReadableError(error);
+  return (Array.isArray(data) ? data : []).map(normalizePlan).sort(function (a, b) {
+    return (a.plan_id || "").localeCompare(b.plan_id || "");
+  });
+}
+
+function normalizePlan(record) {
+  const item = record || {};
+  return {
+    id: String(item.id || "").trim(),
+    plan_id: cleanText(item.plan_id || item.planId || item.id) || "",
+    name: cleanText(item.name || item.title || item.plan_name) || "",
+    duration_days: Number(item.duration_days || item.duration || 0) || 0,
+    price: Number(item.price || item.amount || 0) || 0,
+    currency: cleanText(item.currency || "USD")
+  };
 }
 
 async function addUser(payload) {
@@ -158,6 +218,42 @@ async function deleteUser(id) {
   await requireAuthenticatedUser();
   const { error } = await client.from("profiles").delete().eq("id", id);
   if (error) throw toReadableError(error);
+}
+
+async function updateUser(id, payload) {
+  await requireAuthenticatedUser();
+  const record = mapUserForUpdate(payload);
+  if (!Object.keys(record).length) {
+    throw new Error("No valid fields provided for user update.");
+  }
+
+  const { data, error } = await client.from("profiles").update(record).eq("id", id).select("*").maybeSingle();
+  if (error) throw toReadableError(error);
+  return normalizeUser(data || { id, ...payload });
+}
+
+function mapUserForUpdate(payload) {
+  const item = payload || {};
+  const normalized = {
+    name: cleanText(item.name),
+    role: normalizeProfileRole(item.role),
+    status: cleanText(item.status),
+    plan_name: cleanText(item.plan_name || item.active_plan_name || item.planName || item.activePlanName),
+    active_plan_name: cleanText(item.active_plan_name || item.plan_name || item.activePlanName || item.planName),
+    plan_id: cleanText(item.plan_id || item.active_plan_id || item.planId || item.activePlanId),
+    active_plan_id: cleanText(item.active_plan_id || item.plan_id || item.activePlanId || item.planId),
+    premium_expiry: cleanText(item.premium_expiry),
+    is_premium: typeof item.is_premium === "boolean" ? item.is_premium : undefined,
+    premium_active: typeof item.premium_active === "boolean" ? item.premium_active : undefined
+  };
+
+  Object.keys(normalized).forEach(function (key) {
+    if (normalized[key] === "" || normalized[key] === undefined) {
+      delete normalized[key];
+    }
+  });
+
+  return normalized;
 }
 
 async function updateCurrentAdminProfile(payload) {
@@ -292,9 +388,8 @@ function normalizeDesign(record) {
     Price: Number(item.Price || item.price || 0),
     description: cleanText(item.description),
     tags: normalizeTags(item.tags, item.title || item.name),
-    previewUrl: cleanText(item.previewUrl || item.preview_url || item.image_url || item.image),
-    image: cleanText(item.image || item.image_url || item.previewUrl || item.preview_url),
-    image_url: cleanText(item.image_url || item.image || item.previewUrl || item.preview_url),
+    image: cleanText(item.image || item.image_url),
+    image_url: cleanText(item.image_url || item.image),
     downloadUrl: cleanText(item.downloadUrl || item.download_link || item.file_url || item.download),
     download: cleanText(item.download || item.downloadUrl || item.download_link || item.file_url),
     download_link: cleanText(item.download_link || item.file_url || item.downloadUrl || item.download),
@@ -324,7 +419,7 @@ function buildDesignInsertRecord(payload, compatibleMode) {
     ...baseRecord,
     name: normalized.name,
     payment_mode: normalized.paymentMode,
-    preview_url: normalized.previewUrl,
+    image_url: normalized.image_url || normalized.image,
     extra_images: normalized.extraImages,
     created_at: timestamp,
     updated_at: timestamp
@@ -334,7 +429,6 @@ function buildDesignInsertRecord(payload, compatibleMode) {
 function buildDesignUpdateRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
   const baseRecord = buildBaseDesignRecord(normalized);
-
   if (compatibleMode) {
     return baseRecord;
   }
@@ -343,7 +437,7 @@ function buildDesignUpdateRecord(payload, compatibleMode) {
     ...baseRecord,
     name: normalized.name,
     payment_mode: normalized.paymentMode,
-    preview_url: normalized.previewUrl,
+    image_url: normalized.image_url || normalized.image,
     extra_images: normalized.extraImages,
     updated_at: new Date().toISOString()
   };
@@ -357,7 +451,7 @@ function buildBaseDesignRecord(normalized) {
     is_paid: normalized.paymentMode === "paid",
     description: normalized.description,
     tags: normalized.tags,
-    image: normalized.previewUrl,
+    image: cleanText(normalized.image || normalized.image_url),
     download_link: normalized.downloadUrl,
     downloads: Number(normalized.downloadCount || 0)
   };

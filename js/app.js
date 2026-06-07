@@ -81,6 +81,7 @@
       "<nav class='mobile-nav' aria-label='Mobile Navigation'>" +
       "<a data-nav='dashboard' href='dashboard.html'>Dashboard</a>" +
       "<a data-nav='upload' href='upload.html'>Upload</a>" +
+      "<a data-nav='design' href='design.html'>Designs</a>" +
       "<a data-nav='users' href='users.html'>Users</a>" +
       "<a data-nav='payments' href='payments.html'>Payments</a>" +
       "</nav>";

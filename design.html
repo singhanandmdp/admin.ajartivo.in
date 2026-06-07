@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="Favicon.ico" type="image/x-icon">
+  <title>AjArtivo Design Manager</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-page="design">
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>AjArtivo</strong>
+        <span>Design Upload Admin</span>
+      </div>
+      <nav>
+        <ul class="menu">
+          <li><a data-nav="dashboard" href="dashboard.html">Dashboard</a></li>
+          <li><a data-nav="upload" href="upload.html">Upload Designs</a></li>
+          <li><a data-nav="design" href="design.html">Designs</a></li>
+          <li><a data-nav="users" href="users.html">Users Access</a></li>
+          <li><a data-nav="payments" href="payments.html">Payments</a></li>
+        </ul>
+      </nav>
+      <div class="sidebar-footer">
+        <button type="button" class="btn btn-outline" data-action="logout">Logout</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="panel hero">
+        <div>
+          <h1>Manage All Designs</h1>
+          <p>Search, filter and open any design record from the Supabase designs table.</p>
+        </div>
+        <div><span class="badge">Design Library</span></div>
+      </header>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <h2>Search & Filter</h2>
+            <span>Find designs by title, tags, category and premium access.</span>
+          </div>
+          <button type="button" class="btn btn-outline" id="clearFiltersButton">Clear filters</button>
+        </div>
+
+        <form id="designFilters" class="form-grid">
+          <div class="field">
+            <label for="searchQuery">Search</label>
+            <input id="searchQuery" name="searchQuery" type="search" placeholder="Search title, category or tags">
+          </div>
+          <div class="field">
+            <label for="accessFilter">Access</label>
+            <select id="accessFilter" name="accessFilter">
+              <option value="all">All designs</option>
+              <option value="free">Free only</option>
+              <option value="premium">Premium only</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="categoryFilter">Category</label>
+            <select id="categoryFilter" name="categoryFilter">
+              <option value="all">All categories</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sortFilter">Sort by</label>
+            <select id="sortFilter" name="sortFilter">
+              <option value="createdAt">Newest first</option>
+              <option value="priceAsc">Price low → high</option>
+              <option value="priceDesc">Price high → low</option>
+              <option value="title">Title A → Z</option>
+            </select>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="designTableSection">
+        <div class="section-head">
+          <div>
+            <h2>Design Records</h2>
+            <span id="designCount">Loading designs...</span>
+          </div>
+          <div class="view-controls">
+            <button type="button" id="tableViewButton" class="btn btn-soft active">Table view</button>
+            <button type="button" id="gridViewButton" class="btn btn-soft">Grid view</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Access</th>
+                <th>Downloads</th>
+                <th>Created</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="designTableBody"></tbody>
+          </table>
+        </div>
+        <div class="cards design-grid" id="designGridBody" hidden></div>
+      </section>
+
+      <section class="panel" id="editPanel" hidden>
+        <div class="section-head">
+          <div>
+            <h2>Edit Design</h2>
+            <span id="editPanelNote">Update record fields and save to Supabase.</span>
+          </div>
+          <span class="badge" id="editRecordBadge">Selected</span>
+        </div>
+
+        <div class="status-pill" id="recordStatus" hidden></div>
+
+        <form id="designEditForm" class="form-grid" novalidate>
+          <div class="field full">
+            <label for="editTitle">Title</label>
+            <input id="editTitle" name="editTitle" type="text" required>
+          </div>
+
+          <div class="field">
+            <label for="editPrice">Price (INR)</label>
+            <input id="editPrice" name="editPrice" type="number" min="0" step="1" required>
+          </div>
+
+          <div class="field">
+            <label for="editCategory">Category</label>
+            <input id="editCategory" name="editCategory" type="text" required>
+          </div>
+
+          <div class="field">
+            <label class="toggle-card" for="editPremium">
+              <input id="editPremium" name="editPremium" type="checkbox">
+              <span>
+                <strong>Premium design</strong>
+                <small>Toggle this to mark the design as premium.</small>
+              </span>
+            </label>
+          </div>
+
+          <div class="field full">
+            <label for="editFileUrl">Design File URL</label>
+            <input id="editFileUrl" name="editFileUrl" type="url" placeholder="https://...">
+          </div>
+
+          <div class="field full">
+            <label for="editImageUrl">Preview Image URL</label>
+            <input id="editImageUrl" name="editImageUrl" type="url" placeholder="https://...">
+          </div>
+
+          <div class="field full">
+            <label for="editDescription">Description</label>
+            <textarea id="editDescription" name="editDescription" rows="4"></textarea>
+          </div>
+
+          <div class="field full">
+            <label for="editTags">Tags</label>
+            <input id="editTags" name="editTags" type="text" placeholder="logo, business, premium">
+          </div>
+
+          <div class="field full row">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-outline" id="cancelEditButton">Close</button>
+          </div>
+        </form>
+      </section>
+
+      <footer class="footer">AjArtivo Admin Panel <span data-year></span></footer>
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="utils/auth-check.js"></script>
+  <script type="module" src="js/supabase-data.js"></script>
+  <script src="js/data-store.js"></script>
+  <script src="js/design.js"></script>
+</body>
+</html>

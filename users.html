@@ -18,6 +18,7 @@
         <ul class="menu">
           <li><a data-nav="dashboard" href="dashboard.html">Dashboard</a></li>
           <li><a data-nav="upload" href="upload.html">Upload Designs</a></li>
+          <li><a data-nav="design" href="design.html">Designs</a></li>
           <li><a data-nav="users" href="users.html">Users Access</a></li>
           <li><a data-nav="payments" href="payments.html">Payments</a></li>
         </ul>
@@ -38,45 +39,106 @@
 
       <section class="panel">
         <div class="section-head">
-          <h2>Add Profile Access</h2>
+          <h2>User Profile</h2>
         </div>
         <p class="panel-note">
-          This keeps access in the existing <code>profiles</code> table only. It does not create or reset that person's Supabase Auth password.
+          Enter user email, select the plan, and click upgrade. Suggestions appear as you type.
         </p>
-        <form id="userForm" class="form-grid">
-          <div class="field">
-            <label for="userName">Name</label>
-            <input id="userName" name="userName" type="text" required>
+        <form id="upgradeForm" class="form-grid" onsubmit="return false;">
+          <div class="field full">
+            <label for="upgradeEmail">User Email</label>
+            <input id="upgradeEmail" name="upgradeEmail" type="email" placeholder="Type user email" autocomplete="off" required>
+            <div id="emailSuggestions" class="suggestions-list" hidden></div>
           </div>
           <div class="field">
-            <label for="userEmail">Email</label>
-            <input id="userEmail" name="userEmail" type="email" required>
-          </div>
-          <div class="field">
-            <label for="userRole">Role</label>
-            <select id="userRole" name="userRole">
-              <option value="user">User</option>
-              <option value="moderator">Moderator</option>
+            <label for="upgradePlan">Select Plan</label>
+            <select id="upgradePlan" name="upgradePlan">
+              <option value="Free">Free</option>
+              <option value="Premium">Premium</option>
             </select>
+            <div id="planCards" class="plan-cards" aria-hidden="true"></div>
           </div>
           <div class="field">
-            <label for="userStatus">Status</label>
-            <select id="userStatus" name="userStatus">
-              <option value="Active">Active</option>
-              <option value="Pending">Pending</option>
-              <option value="Blocked">Blocked</option>
+            <label for="upgradeDuration">Duration</label>
+            <select id="upgradeDuration" name="upgradeDuration">
+              <option value="365">1 year</option>
+              <option value="180">6 months</option>
+              <option value="30">30 days</option>
             </select>
           </div>
           <div class="field full row">
-            <button type="submit" class="btn btn-primary">Add User</button>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="flex:1">
+                <div id="upgradePrice" class="muted small">Price: —</div>
+              </div>
+              <div>
+                <button type="button" class="btn btn-primary" id="upgradeButton">Upgrade Plan</button>
+              </div>
+            </div>
           </div>
         </form>
+      </section>
+
+      <section class="panel" id="selectedUserPanel" hidden>
+        <div class="section-head">
+          <h2>Selected User Details</h2>
+        </div>
+        <div id="selectedUserSummary" class="grid two-cols">
+          <div>
+            <p><strong id="su_name">Name</strong></p>
+            <p id="su_email" class="muted">email@example.com</p>
+          </div>
+          <div>
+            <p><strong>Account Created</strong></p>
+            <p id="su_created">-</p>
+          </div>
+          <div>
+            <p><strong>Status</strong></p>
+            <p id="su_status">-</p>
+          </div>
+          <div>
+            <p><strong>Active Plan</strong></p>
+            <p id="su_plan">-</p>
+          </div>
+        </div>
+
+        <div class="section-head" style="margin-top:12px;">
+          <h3>Usage Summary</h3>
+        </div>
+        <div class="grid three-cols" id="su_usage">
+          <div><strong id="su_downloads_month">0</strong><div class="muted small">Downloads this month</div></div>
+          <div><strong id="su_ai_today">0</strong><div class="muted small">AI generations today</div></div>
+          <div><strong id="su_total_spent">₹0</strong><div class="muted small">Total spent</div></div>
+        </div>
+
+        <div class="section-head" style="margin-top:12px;">
+          <h3>Recent Purchases</h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Amount</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="su_purchases"></tbody>
+          </table>
+        </div>
+      </section>
       </section>
 
       <section class="panel">
         <div class="section-head">
           <h2>Current Profiles</h2>
         </div>
+        <form class="form-grid" id="userSearchForm" onsubmit="return false;">
+          <div class="field full">
+            <label for="userSearch">Search profiles</label>
+            <input id="userSearch" name="userSearch" type="search" placeholder="Search by name, email, or role">
+          </div>
+        </form>
         <div class="table-wrap">
           <table>
             <thead>

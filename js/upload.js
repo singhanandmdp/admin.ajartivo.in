@@ -172,8 +172,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let imageUrl = "";
 
-    if (uploadedPreviewAsset && isValidHttpUrl(uploadedPreviewAsset.preview_url)) {
-      imageUrl = String(uploadedPreviewAsset.preview_url || "").trim();
+    if (uploadedPreviewAsset && isValidHttpUrl(uploadedPreviewAsset.image_url)) {
+      imageUrl = String(uploadedPreviewAsset.image_url || "").trim();
     } else if (previewFile) {
       validateFile(previewFile, PREVIEW_FILE_TYPES, MAX_PREVIEW_FILE_MB, "preview image");
       const preparedPreviewAsset = await ensureMergedPreviewAsset(previewFile);
@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", function () {
       imageUrl = String(previewUploadResult.file_url || "").trim();
 
       uploadedPreviewAsset = {
-        preview_url: imageUrl,
+        image_url: imageUrl,
         file_url: imageUrl,
         signature: preparedPreviewAsset.signature
       };
@@ -599,7 +599,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (imageUrl) {
       uploadedPreviewAsset = {
-        preview_url: imageUrl,
+        image_url: imageUrl,
         signature: ""
       };
     } else {

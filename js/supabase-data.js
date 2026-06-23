@@ -327,9 +327,6 @@ async function updateCurrentAdminPassword(payload) {
 
 function sanitizeDesignRecord(record) {
   const sanitized = { ...(record || {}) };
-  delete sanitized.extra_images;
-  delete sanitized.extraImages;
-  delete sanitized.gallery;
   delete sanitized.preview_url;
   delete sanitized.previewUrl;
   return sanitized;
@@ -398,13 +395,8 @@ async function findCurrentAdminRecord(user) {
 
 function normalizeDesign(record) {
   const item = record || {};
-  const extraImages = Array.isArray(item.extra_images)
-    ? item.extra_images
-    : Array.isArray(item.extraImages)
-    ? item.extraImages
-    : Array.isArray(item.gallery)
-    ? item.gallery
-    : [];
+  const resolvedImageUrl = cleanText(item.image_url || item.image);
+  const resolvedImage = cleanText(item.image || item.image_url);
 
   return {
     ...item,
@@ -417,14 +409,12 @@ function normalizeDesign(record) {
     Price: Number(item.Price || item.price || 0),
     description: cleanText(item.description),
     tags: normalizeTags(item.tags, item.title || item.name),
-    image: cleanText(item.image || item.image_url),
-    image_url: cleanText(item.image_url || item.image),
+    image: resolvedImage || resolvedImageUrl,
+    image_url: resolvedImageUrl || resolvedImage,
     downloadUrl: cleanText(item.downloadUrl || item.download_link || item.file_url || item.download),
     download: cleanText(item.download || item.downloadUrl || item.download_link || item.file_url),
     download_link: cleanText(item.download_link || item.file_url || item.downloadUrl || item.download),
     file_url: cleanText(item.file_url || item.download_link || item.downloadUrl || item.download),
-    extraImages: extraImages.filter(Boolean),
-    gallery: extraImages.filter(Boolean),
     downloadCount: Number(item.downloadCount || item.downloads || 0),
     downloads: Number(item.downloads || item.downloadCount || 0),
     createdAt: cleanText(item.createdAt || item.created_at) || new Date().toISOString(),
@@ -436,11 +426,6 @@ function buildDesignInsertRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
   const timestamp = new Date().toISOString();
   const baseRecord = buildBaseDesignRecord(normalized);
-
-  if (Array.isArray(normalized.extraImages) && normalized.extraImages.length) {
-    console.info("[AJartivo Admin] extra_images detected in payload but not written because the current designs schema does not expose that column.", normalized.extraImages);
-  }
-
   if (compatibleMode) {
     const fallbackRecord = {
       ...baseRecord,
@@ -461,11 +446,6 @@ function buildDesignInsertRecord(payload, compatibleMode) {
 function buildDesignUpdateRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
   const baseRecord = buildBaseDesignRecord(normalized);
-
-  if (Array.isArray(normalized.extraImages) && normalized.extraImages.length) {
-    console.info("[AJartivo Admin] extra_images detected in payload but not written because the current designs schema does not expose that column.", normalized.extraImages);
-  }
-
   if (compatibleMode) {
     const fallbackRecord = { ...baseRecord };
     return fallbackRecord;

@@ -39,11 +39,13 @@ async function addDesign(payload) {
 
   const normalized = normalizeDesign(payload);
   const fullRecord = buildDesignInsertRecord(normalized, false);
+  console.log("[AJartivo Admin] Design insert payload", fullRecord);
 
   try {
     const inserted = await insertDesignRecord(fullRecord);
     return normalizeDesign(inserted);
   } catch (error) {
+    console.error("[AJartivo Admin] Design insert failed", error);
     if (!isMissingColumnError(error)) {
       throw toReadableError(error);
     }
@@ -51,6 +53,7 @@ async function addDesign(payload) {
 
   console.warn("Retrying design insert with compatible schema payload.");
   const fallbackRecord = buildDesignInsertRecord(normalized, true);
+  console.log("[AJartivo Admin] Design insert fallback payload", fallbackRecord);
   const inserted = await insertDesignRecord(fallbackRecord);
   return normalizeDesign(inserted);
 }
@@ -60,11 +63,13 @@ async function updateDesign(id, payload) {
 
   const normalized = normalizeDesign(payload);
   const fullRecord = buildDesignUpdateRecord(normalized, false);
+  console.log("[AJartivo Admin] Design update payload", { id: String(id || "").trim(), record: fullRecord });
 
   try {
     const updated = await updateDesignRecord(id, fullRecord);
     return normalizeDesign(updated);
   } catch (error) {
+    console.error("[AJartivo Admin] Design update failed", error);
     if (!isMissingColumnError(error)) {
       throw toReadableError(error);
     }
@@ -72,10 +77,10 @@ async function updateDesign(id, payload) {
 
   console.warn("Retrying design update with compatible schema payload.");
   const fallbackRecord = buildDesignUpdateRecord(normalized, true);
+  console.log("[AJartivo Admin] Design update fallback payload", { id: String(id || "").trim(), record: fallbackRecord });
   const updated = await updateDesignRecord(id, fallbackRecord);
   return normalizeDesign(updated);
 }
-
 async function deleteDesign(id) {
   await requireAuthenticatedUser();
   const { error } = await client.from("designs").delete().eq("id", id);
@@ -320,21 +325,45 @@ async function updateCurrentAdminPassword(payload) {
   return data && data.user ? data.user : null;
 }
 
+function sanitizeDesignRecord(record) {
+  const sanitized = { ...(record || {}) };
+  delete sanitized.extra_images;
+  delete sanitized.extraImages;
+  delete sanitized.gallery;
+  delete sanitized.preview_url;
+  delete sanitized.previewUrl;
+  return sanitized;
+}
+
 async function insertDesignRecord(record) {
-  const { data, error } = await client.from("designs").insert(record).select("*").single();
-  if (error) throw error;
+  const sanitizedRecord = sanitizeDesignRecord(record);
+  console.log("[AJartivo Admin] Supabase insert payload", sanitizedRecord);
+
+  const { data, error } = await client.from("designs").insert(sanitizedRecord).select("*").single();
+  if (error) {
+    console.error("[AJartivo Admin] Supabase insert error", error, sanitizedRecord);
+    throw error;
+  }
+  console.log("[AJartivo Admin] Supabase insert response", data);
   return data;
 }
 
 async function updateDesignRecord(id, record) {
+  const sanitizedRecord = sanitizeDesignRecord(record);
+  console.log("[AJartivo Admin] Supabase update payload", { id: String(id || "").trim(), record: sanitizedRecord });
+
   const { data, error } = await client
     .from("designs")
-    .update(record)
+    .update(sanitizedRecord)
     .eq("id", id)
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("[AJartivo Admin] Supabase update error", error, { id: String(id || "").trim(), record: sanitizedRecord });
+    throw error;
+  }
+  console.log("[AJartivo Admin] Supabase update response", data);
   return data;
 }
 
@@ -408,12 +437,15 @@ function buildDesignInsertRecord(payload, compatibleMode) {
   const timestamp = new Date().toISOString();
   const baseRecord = buildBaseDesignRecord(normalized);
 
+  if (Array.isArray(normalized.extraImages) && normalized.extraImages.length) {
+    console.info("[AJartivo Admin] extra_images detected in payload but not written because the current designs schema does not expose that column.", normalized.extraImages);
+  }
+
   if (compatibleMode) {
     const fallbackRecord = {
       ...baseRecord,
       created_at: timestamp
     };
-    delete fallbackRecord.image;
     return fallbackRecord;
   }
 
@@ -421,8 +453,6 @@ function buildDesignInsertRecord(payload, compatibleMode) {
     ...baseRecord,
     name: normalized.name,
     payment_mode: normalized.paymentMode,
-    image_url: normalized.image_url || normalized.image,
-    extra_images: normalized.extraImages,
     created_at: timestamp,
     updated_at: timestamp
   };
@@ -431,9 +461,13 @@ function buildDesignInsertRecord(payload, compatibleMode) {
 function buildDesignUpdateRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
   const baseRecord = buildBaseDesignRecord(normalized);
+
+  if (Array.isArray(normalized.extraImages) && normalized.extraImages.length) {
+    console.info("[AJartivo Admin] extra_images detected in payload but not written because the current designs schema does not expose that column.", normalized.extraImages);
+  }
+
   if (compatibleMode) {
     const fallbackRecord = { ...baseRecord };
-    delete fallbackRecord.image;
     return fallbackRecord;
   }
 
@@ -441,8 +475,6 @@ function buildDesignUpdateRecord(payload, compatibleMode) {
     ...baseRecord,
     name: normalized.name,
     payment_mode: normalized.paymentMode,
-    image_url: normalized.image_url || normalized.image,
-    extra_images: normalized.extraImages,
     updated_at: new Date().toISOString()
   };
 }
@@ -455,6 +487,7 @@ function buildBaseDesignRecord(normalized) {
     is_paid: normalized.paymentMode === "paid",
     description: normalized.description,
     tags: normalized.tags,
+    image_url: cleanText(normalized.image_url || normalized.image),
     image: cleanText(normalized.image || normalized.image_url),
     download_link: normalized.downloadUrl,
     downloads: Number(normalized.downloadCount || 0)
@@ -642,3 +675,4 @@ function toReadableError(error) {
 function getErrorMessage(error) {
   return String(error && (error.message || error.details || error.hint) || "").trim().toLowerCase();
 }
+

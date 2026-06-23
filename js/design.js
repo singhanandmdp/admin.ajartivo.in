@@ -24,12 +24,15 @@ document.addEventListener("DOMContentLoaded", function () {
   const editPremium = document.getElementById("editPremium");
   const editFileUrl = document.getElementById("editFileUrl");
   const editImageUrl = document.getElementById("editImageUrl");
+  const editPreviewFile = document.getElementById("editPreviewFile");
+  const editPreviewFileMeta = document.getElementById("editPreviewFileMeta");
   const editDescription = document.getElementById("editDescription");
   const editTags = document.getElementById("editTags");
 
   let designs = [];
   let activeDesign = null;
   let activeView = "table";
+  let uploadedPreviewUrl = "";
 
   function getAdminStore() {
     return window.AdminData || { connected: false };
@@ -245,6 +248,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function openEditor(design) {
     activeDesign = design;
     editPanel.hidden = false;
+    uploadedPreviewUrl = "";
     setStatus("Editing " + (design.title || design.name || "design"), "warning");
 
     editTitle.value = design.title || design.name || "";
@@ -255,13 +259,18 @@ document.addEventListener("DOMContentLoaded", function () {
     editImageUrl.value = normalizeText(design.image_url || design.image || "");
     editDescription.value = normalizeText(design.description || "");
     editTags.value = Array.isArray(design.tags) ? design.tags.join(", ") : normalizeText(design.tags || "");
+    editPreviewFile.value = "";
+    editPreviewFileMeta.textContent = "No file selected. Allowed: PNG, JPG, JPEG, WEBP (max 10MB)";
     editPanel.querySelector("#editRecordBadge").textContent = "ID: " + (design.id || "-");
   }
 
   function closeEditor() {
     activeDesign = null;
+    uploadedPreviewUrl = "";
     editPanel.hidden = true;
     editForm.reset();
+    editPreviewFile.value = "";
+    editPreviewFileMeta.textContent = "No file selected. Allowed: PNG, JPG, JPEG, WEBP (max 10MB)";
     setStatus("", "");
   }
 
@@ -273,11 +282,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const nextTitle = normalizeText(editTitle.value) || activeDesign.title || activeDesign.name || "Untitled Design";
     const nextCategory = normalizeText(editCategory.value).toUpperCase() || activeDesign.category || "OTHER";
     const nextFileUrl = normalizeText(editFileUrl.value) || normalizeText(activeDesign.file_url || activeDesign.download_link || activeDesign.downloadUrl || activeDesign.download || "");
-    const nextImageUrl = normalizeText(editImageUrl.value) || normalizeText(activeDesign.image_url || activeDesign.image || "");
+    const nextImageUrl = uploadedPreviewUrl || normalizeText(editImageUrl.value) || normalizeText(activeDesign.image_url || activeDesign.image || "");
     const nextTags = parseTags(editTags.value);
 
     return {
-      ...activeDesign,
       title: nextTitle,
       name: nextTitle,
       category: nextCategory,
@@ -342,6 +350,63 @@ document.addEventListener("DOMContentLoaded", function () {
     gridViewButton.classList.toggle("active", !isTable);
   }
 
+  function handlePreviewFileChange() {
+    const file = editPreviewFile.files && editPreviewFile.files[0];
+    if (!file) {
+      editPreviewFileMeta.textContent = "No file selected. Allowed: PNG, JPG, JPEG, WEBP (max 10MB)";
+      return;
+    }
+
+    const MAX_SIZE_MB = 10;
+    const ALLOWED_TYPES = [".png", ".jpg", ".jpeg", ".webp"];
+    const fileExt = "." + file.name.split(".").pop().toLowerCase();
+
+    if (!ALLOWED_TYPES.includes(fileExt)) {
+      editPreviewFileMeta.textContent = "Invalid file type. Allowed: PNG, JPG, JPEG, WEBP";
+      editPreviewFile.value = "";
+      return;
+    }
+
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      editPreviewFileMeta.textContent = "File too large. Max: 10MB. Your file: " + (file.size / 1024 / 1024).toFixed(1) + "MB";
+      editPreviewFile.value = "";
+      return;
+    }
+
+    editPreviewFileMeta.textContent = file.name + " (" + (file.size / 1024).toFixed(1) + "KB)";
+  }
+
+  async function uploadPreviewFile(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/upload", {
+      method: "POST",
+      headers: {
+        "X-File-Type": file.type || "application/octet-stream",
+        "X-File-Name": encodeURIComponent(file.name),
+        "X-Upload-Kind": "preview"
+      },
+      body: file
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(function () {
+        return {};
+      });
+      throw new Error(String(errorData.error || `Upload failed with status ${response.status}.`).trim());
+    }
+
+    const result = await response.json();
+    if (!result.file_url) {
+      throw new Error("Upload completed but no file URL was returned.");
+    }
+
+    return result.file_url;
+  }
+
+  editPreviewFile.addEventListener("change", handlePreviewFileChange);
+
   cancelEditButton.addEventListener("click", function () {
     closeEditor();
   });
@@ -355,8 +420,19 @@ document.addEventListener("DOMContentLoaded", function () {
     setStatus("Saving changes...", "warning");
 
     try {
+      const previewFile = editPreviewFile.files && editPreviewFile.files[0];
+      
+      // Upload preview file if provided
+      if (previewFile) {
+        setStatus("Uploading preview image...", "warning");
+        uploadedPreviewUrl = await uploadPreviewFile(previewFile);
+        console.log("[AJartivo Design Edit] Uploaded preview URL", uploadedPreviewUrl);
+      }
+
       const payload = buildUpdatePayload();
+      console.log("[AJartivo Design Edit] Update payload", payload);
       const updatedDesign = await updateDesignSafe(activeDesign.id, payload);
+      console.log("[AJartivo Design Edit] Update response", updatedDesign);
       designs = designs.map(function (item) {
         return String(item.id) === String(updatedDesign.id) ? updatedDesign : item;
       });
@@ -364,6 +440,9 @@ document.addEventListener("DOMContentLoaded", function () {
       renderCategoryOptions();
       renderDesigns();
       setStatus("Design updated successfully.", "success");
+      uploadedPreviewUrl = "";
+      editPreviewFile.value = "";
+      editPreviewFileMeta.textContent = "No file selected. Allowed: PNG, JPG, JPEG, WEBP (max 10MB)";
     } catch (error) {
       console.error(error);
       setStatus(String(error.message || "Update failed."), "danger");

@@ -81,7 +81,9 @@ document.addEventListener("DOMContentLoaded", function () {
       setFormMessage(isEditing ? "Preparing update..." : "Preparing upload...", "warning");
 
       const payload = await buildPayload();
+      console.log("[AJartivo Upload] Submit payload", payload);
       const savedDesign = await saveDesignPayload(payload);
+      console.log("[AJartivo Upload] Save response", savedDesign);
 
       setFormMessage(`${isEditing ? "Updated" : "Saved"} "${savedDesign.title}" successfully.`, "success");
       uploadStatus.textContent = isEditing ? "Updated" : "Published";
@@ -89,6 +91,7 @@ document.addEventListener("DOMContentLoaded", function () {
       resetForm();
       await loadLatestDesigns();
     } catch (error) {
+      console.error("[AJartivo Upload] Submit failed", error);
       setFormMessage(getErrorMessage(error), "danger");
       uploadStatus.textContent = "Failed";
       backendState.textContent = "Error returned";
@@ -101,6 +104,15 @@ document.addEventListener("DOMContentLoaded", function () {
     const adminStore = window.AdminData || { connected: false };
     const isEditing = Boolean(activeEditDesign && activeEditDesign.id);
 
+    console.log("[AJartivo Upload] Save payload", {
+      mode: isEditing ? "update" : "insert",
+      title: payload && payload.title,
+      category: payload && payload.category,
+      image_url: payload && payload.image_url,
+      download_link: payload && (payload.download_link || payload.file_url),
+      price: payload && payload.price,
+      is_premium: payload && payload.is_premium === true
+    });
     setFormMessage(isEditing ? "Saving design update to Supabase..." : "Saving design record to Supabase...", "warning");
     backendState.textContent = isEditing ? "Updating record" : "Saving record";
 
@@ -124,7 +136,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     return result.design;
   }
-
   async function buildPayload() {
     const title = String(titleInput.value || "").trim();
     const designFile = designFileInput.files && designFileInput.files[0];
@@ -165,6 +176,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const designUploadResult = await uploadBinaryFile(designFile, "design");
       fileUrl = String(designUploadResult.file_url || "").trim();
       category = String(designUploadResult.category || inferCategoryFromName(designFile.name)).trim();
+      console.log("[AJartivo Upload] Uploaded design file URL", fileUrl);
       if (categoryInput) {
         categoryInput.value = category;
       }
@@ -174,6 +186,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (uploadedPreviewAsset && isValidHttpUrl(uploadedPreviewAsset.image_url)) {
       imageUrl = String(uploadedPreviewAsset.image_url || "").trim();
+      console.log("[AJartivo Upload] Reusing cached preview image URL", imageUrl);
     } else if (previewFile) {
       validateFile(previewFile, PREVIEW_FILE_TYPES, MAX_PREVIEW_FILE_MB, "preview image");
       const preparedPreviewAsset = await ensureMergedPreviewAsset(previewFile);
@@ -183,6 +196,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const previewUploadResult = await uploadBinaryFile(preparedPreviewAsset.file, "preview");
       imageUrl = String(previewUploadResult.file_url || "").trim();
+      console.log("[AJartivo Upload] Uploaded preview image URL", imageUrl);
 
       uploadedPreviewAsset = {
         image_url: imageUrl,
@@ -191,8 +205,10 @@ document.addEventListener("DOMContentLoaded", function () {
       };
     } else if (!designFile && activeEditDesign && isValidHttpUrl(activeEditDesign.image_url)) {
       imageUrl = String(activeEditDesign.image_url || "").trim();
+      console.log("[AJartivo Upload] Reusing active edit preview image URL", imageUrl);
     } else if (activeEditDesign && isValidHttpUrl(activeEditDesign.image_url)) {
       imageUrl = String(activeEditDesign.image_url || "").trim();
+      console.log("[AJartivo Upload] Reusing active edit preview image URL", imageUrl);
     } else {
       throw new Error("Please upload a preview image or paste a preview image URL.");
     }
@@ -200,10 +216,18 @@ document.addEventListener("DOMContentLoaded", function () {
     const normalizedDescription = descriptionValue || DEFAULT_DESCRIPTION;
     const normalizedTags = parseTags(tagsValue, title);
 
+    console.log("[AJartivo Upload] Final design URLs", {
+      title: title,
+      category: category,
+      download_link: fileUrl,
+      image_url: imageUrl
+    });
+
     return {
       title: title,
       price: price,
       image_url: imageUrl,
+      download_link: fileUrl,
       file_url: fileUrl,
       category: category,
       description: normalizedDescription,
@@ -380,7 +404,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    designFileMeta.textContent = `${file.name} • ${formatBytes(file.size)}`;
+    designFileMeta.textContent = `${file.name} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${formatBytes(file.size)}`;
     if (designUrlInput) {
       designUrlInput.value = "";
     }
@@ -406,7 +430,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const file = previewFileInput.files && previewFileInput.files[0];
     if (previewFileMeta) {
       previewFileMeta.textContent = file
-        ? `${file.name} • ${formatBytes(file.size)}`
+        ? `${file.name} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${formatBytes(file.size)}`
         : "Allowed: PNG, JPG, JPEG, WEBP";
     }
     await updatePreviewPanel();
@@ -474,6 +498,8 @@ document.addEventListener("DOMContentLoaded", function () {
       },
       body: file
     }, { auth: true });
+
+    console.log("[AJartivo Upload] Binary upload response", { uploadKind: uploadKind, response: response });
 
     if (!response.file_url) {
       throw new Error(`Upload completed but no file URL was returned for ${uploadKind}.`);

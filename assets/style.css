@@ -210,6 +210,17 @@ a {
   font-size: 13px;
 }
 
+.view-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(100px, 1fr));
+  gap: 10px;
+}
+
+.view-controls .btn.active {
+  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+  color: #ffffff;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -291,9 +302,111 @@ textarea {
   font-family: inherit;
 }
 
+.suggestions-list {
+  margin-top: 6px;
+  border: 1px solid #d5deeb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #111827;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item span {
+  display: block;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.suggestion-item:hover {
+  background: #f8fafc;
+}
+
 .password-field {
   position: relative;
 }
+
+/* Plan cards chooser */
+.plan-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.plan-card {
+  border-radius: 14px;
+  padding: 14px;
+  color: #fff;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 12px 30px rgba(12, 18, 35, 0.08);
+  transition: transform 220ms cubic-bezier(.2,.9,.3,1), box-shadow 220ms;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.plan-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 20px 45px rgba(12, 18, 35, 0.14);
+}
+
+.plan-card .plan-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.plan-card .plan-price {
+  font-size: 18px;
+  margin-top: 6px;
+}
+
+.plan-card .plan-meta {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.plan-card.selected {
+  outline: 3px solid rgba(255,255,255,0.12);
+  transform: translateY(-8px) scale(1.03);
+}
+
+/* gradient variants (fallback to neutral) */
+.plan-card[data-gradient="1"] { background: linear-gradient(135deg,#6ee7b7 0%,#3b82f6 100%); }
+.plan-card[data-gradient="2"] { background: linear-gradient(135deg,#f472b6 0%,#f97316 100%); }
+.plan-card[data-gradient="3"] { background: linear-gradient(135deg,#60a5fa 0%,#7c3aed 100%); }
+.plan-card[data-gradient="4"] { background: linear-gradient(135deg,#f59e0b 0%,#ef4444 100%); }
+
+/* Primary button gradient */
+.btn-primary {
+  background: linear-gradient(90deg,#2b6ef6,#6366f1);
+  border: none;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(99,102,241,0.18);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.btn-primary:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(99,102,241,0.22); }
+
+/* small helpers */
+.muted.small { font-size: 12px; color: rgba(17,24,39,0.7); }
+
 
 .password-field input {
   padding-right: 44px;
@@ -451,18 +564,36 @@ textarea:focus {
   gap: 10px;
 }
 
-.design-card {
+ .design-card {
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
   background: #fff;
 }
 
-.design-card img {
+.design-card .card-image {
   width: 100%;
-  height: 140px;
-  object-fit: cover;
+  height: 200px;
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
   background: #edf2fa;
+}
+
+.design-card .card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.design-card .card-image.placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 140px;
+  background: #f4f7fb;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .design-card .content {

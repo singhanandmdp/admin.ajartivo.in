@@ -409,10 +409,12 @@ function buildDesignInsertRecord(payload, compatibleMode) {
   const baseRecord = buildBaseDesignRecord(normalized);
 
   if (compatibleMode) {
-    return {
+    const fallbackRecord = {
       ...baseRecord,
       created_at: timestamp
     };
+    delete fallbackRecord.image;
+    return fallbackRecord;
   }
 
   return {
@@ -430,7 +432,9 @@ function buildDesignUpdateRecord(payload, compatibleMode) {
   const normalized = normalizeDesign(payload);
   const baseRecord = buildBaseDesignRecord(normalized);
   if (compatibleMode) {
-    return baseRecord;
+    const fallbackRecord = { ...baseRecord };
+    delete fallbackRecord.image;
+    return fallbackRecord;
   }
 
   return {

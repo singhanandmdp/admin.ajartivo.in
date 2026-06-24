@@ -467,11 +467,8 @@ function buildBaseDesignRecord(normalized) {
     is_paid: normalized.paymentMode === "paid",
     description: normalized.description,
     tags: normalized.tags,
-    image_url: cleanText(normalized.image_url || normalized.preview_url || normalized.image),
-    preview_url: cleanText(normalized.preview_url || normalized.image_url || normalized.image),
-    image: cleanText(normalized.image || normalized.image_url || normalized.preview_url),
+    image_url: cleanText(normalized.image_url || normalized.image),
     download_link: normalized.downloadUrl,
-    download_url: normalized.downloadUrl,
     downloads: Number(normalized.downloadCount || 0)
   };
 }

@@ -327,8 +327,6 @@ async function updateCurrentAdminPassword(payload) {
 
 function sanitizeDesignRecord(record) {
   const sanitized = { ...(record || {}) };
-  delete sanitized.preview_url;
-  delete sanitized.previewUrl;
   return sanitized;
 }
 
@@ -411,7 +409,9 @@ function normalizeDesign(record) {
     tags: normalizeTags(item.tags, item.title || item.name),
     image: resolvedImage || resolvedImageUrl,
     image_url: resolvedImageUrl || resolvedImage,
-    downloadUrl: cleanText(item.downloadUrl || item.download_link || item.file_url || item.download),
+    preview_url: cleanText(item.preview_url || item.image_url || item.image),
+    downloadUrl: cleanText(item.downloadUrl || item.download_link || item.download_url || item.file_url || item.download),
+    download_url: cleanText(item.download_url || item.download_link || item.file_url || item.downloadUrl || item.download),
     download: cleanText(item.download || item.downloadUrl || item.download_link || item.file_url),
     download_link: cleanText(item.download_link || item.file_url || item.downloadUrl || item.download),
     file_url: cleanText(item.file_url || item.download_link || item.downloadUrl || item.download),
@@ -467,9 +467,11 @@ function buildBaseDesignRecord(normalized) {
     is_paid: normalized.paymentMode === "paid",
     description: normalized.description,
     tags: normalized.tags,
-    image_url: cleanText(normalized.image_url || normalized.image),
-    image: cleanText(normalized.image || normalized.image_url),
+    image_url: cleanText(normalized.image_url || normalized.preview_url || normalized.image),
+    preview_url: cleanText(normalized.preview_url || normalized.image_url || normalized.image),
+    image: cleanText(normalized.image || normalized.image_url || normalized.preview_url),
     download_link: normalized.downloadUrl,
+    download_url: normalized.downloadUrl,
     downloads: Number(normalized.downloadCount || 0)
   };
 }

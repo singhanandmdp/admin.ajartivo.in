@@ -109,7 +109,9 @@ document.addEventListener("DOMContentLoaded", function () {
       title: payload && payload.title,
       category: payload && payload.category,
       image_url: payload && payload.image_url,
-      download_link: payload && (payload.download_link || payload.file_url),
+      preview_url: payload && (payload.preview_url || payload.image_url),
+      download_link: payload && (payload.download_link || payload.download_url || payload.file_url),
+      download_url: payload && (payload.download_url || payload.download_link || payload.file_url),
       price: payload && payload.price,
       is_premium: payload && payload.is_premium === true
     });
@@ -404,7 +406,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    designFileMeta.textContent = `${file.name} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${formatBytes(file.size)}`;
+    designFileMeta.textContent = `${file.name} - ${formatBytes(file.size)}`;
     if (designUrlInput) {
       designUrlInput.value = "";
     }
@@ -430,7 +432,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const file = previewFileInput.files && previewFileInput.files[0];
     if (previewFileMeta) {
       previewFileMeta.textContent = file
-        ? `${file.name} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ ${formatBytes(file.size)}`
+        ? `${file.name} - ${formatBytes(file.size)}`
         : "Allowed: PNG, JPG, JPEG, WEBP";
     }
     await updatePreviewPanel();
@@ -488,7 +490,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function uploadBinaryFile(file, uploadKind) {
-    const response = await apiRequest("/upload", {
+    const response = await apiRequest("/admin/upload", {
       method: "POST",
       headers: {
         "Content-Type": file.type || "application/octet-stream",
@@ -971,3 +973,4 @@ function createMergedPreviewName(fileName) {
   const baseName = normalizedName.replace(/\.[^./\\]+$/, "") || "preview";
   return `${baseName}-merged-preview.png`;
 }
+

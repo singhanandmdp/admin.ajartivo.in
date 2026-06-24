@@ -1,3 +1,21 @@
+const LOCAL_BACKEND_BASE_URL = "http://localhost:5000";
+const LIVE_BACKEND_BASE_URL = "https://ajartivo-backend.onrender.com";
+const BASE_URL = resolveBackendBaseUrl();
+
+function resolveBackendBaseUrl() {
+  const metaTag = document.querySelector('meta[name="ajartivo-backend-url"]');
+  const configuredUrl = String(window.AJARTIVO_BACKEND_URL || (metaTag && metaTag.content) || "").trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  const hostname = String(window.location && window.location.hostname || "").trim().toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return LOCAL_BACKEND_BASE_URL;
+  }
+
+  return LIVE_BACKEND_BASE_URL;
+}
 document.addEventListener("DOMContentLoaded", function () {
   if (document.body.dataset.page !== "design") {
     return;
@@ -380,7 +398,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/upload", {
+    const response = await fetch(`${BASE_URL}/admin/upload`, {
       method: "POST",
       headers: {
         "X-File-Type": file.type || "application/octet-stream",
@@ -451,3 +469,4 @@ document.addEventListener("DOMContentLoaded", function () {
 
   refreshDesignList();
 });
+

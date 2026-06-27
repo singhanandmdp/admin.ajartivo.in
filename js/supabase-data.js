@@ -1,4 +1,4 @@
-import { supabase as client } from "./supabase-auth.js";
+﻿import { supabase as client } from "./supabase-auth.js";
 
 window.AdminData = {
   connected: true,
@@ -384,6 +384,9 @@ function normalizeDesign(record) {
     title: cleanText(item.title || item.name) || "Untitled Design",
     category: cleanText(item.category).toUpperCase() || "OTHER",
     paymentMode: resolvePaymentMode(item),
+    is_free: resolvePaymentMode(item) !== "paid",
+    is_premium: resolvePaymentMode(item) === "paid",
+    is_paid: resolvePaymentMode(item) === "paid",
     price: Number(item.price || item.Price || 0),
     Price: Number(item.Price || item.price || 0),
     description: cleanText(item.description),
@@ -453,6 +456,8 @@ function buildBaseDesignRecord(normalized) {
     category: normalized.category,
     price: normalized.price,
     is_paid: normalized.paymentMode === "paid",
+    is_premium: normalized.paymentMode === "paid",
+    is_free: normalized.paymentMode !== "paid",
     description: normalized.description,
     tags: normalized.tags,
     image_url: cleanText(normalized.image_url || normalized.image),
@@ -563,7 +568,7 @@ function resolvePaymentMode(item) {
   const mode = cleanText(item.paymentMode || item.payment_mode).toLowerCase();
   if (mode === "free") return "free";
   if (mode === "paid") return "paid";
-  return Number(item.price || item.Price || 0) > 0 || item.is_paid === true ? "paid" : "free";
+  return item.is_premium === true || item.is_paid === true || Number(item.price || item.Price || 0) > 0 ? "paid" : "free";
 }
 
 function sortByCreatedAtDesc(a, b) {
@@ -642,3 +647,6 @@ function toReadableError(error) {
 function getErrorMessage(error) {
   return String(error && (error.message || error.details || error.hint) || "").trim().toLowerCase();
 }
+
+
+

@@ -1,4 +1,4 @@
-import { supabase } from "./supabase-auth.js";
+﻿import { supabase } from "./supabase-auth.js";
 
 const LOCAL_BACKEND_BASE_URL = "http://localhost:5000";
 const LIVE_BACKEND_BASE_URL = "https://ajartivo-backend.onrender.com";
@@ -13,6 +13,7 @@ const WATERMARK_IMAGE_PATH = "./images/watermark.png";
 let previewObjectUrl = "";
 let uploadedPreviewAsset = null;
 let mergedPreviewAsset = null;
+let categoryManualOverride = false;
 
 document.addEventListener("DOMContentLoaded", function () {
   if (document.body.dataset.page !== "upload") {
@@ -59,6 +60,12 @@ document.addEventListener("DOMContentLoaded", function () {
   priceInput.addEventListener("input", updateSummary);
   if (designUrlInput) {
     designUrlInput.addEventListener("input", updateSummary);
+  }
+  if (categoryInput) {
+    categoryInput.addEventListener("input", function () {
+      categoryManualOverride = true;
+      updateSummary();
+    });
   }
   if (designUrlToggle) {
     designUrlToggle.addEventListener("click", toggleDesignUrlField);
@@ -160,14 +167,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     let fileUrl = cleanText(activeEditDesign && (activeEditDesign.file_url || activeEditDesign.download_link));
-    let category = cleanText(categoryInput && categoryInput.value) || cleanText(activeEditDesign && activeEditDesign.category) || "FILE";
+    let category = normalizeCategoryValue(categoryInput && categoryInput.value) || normalizeCategoryValue(activeEditDesign && activeEditDesign.category) || "FILE";
     if (designUrlValue) {
       if (!isValidHttpUrl(designUrlValue)) {
         throw new Error("Design file URL must be a valid http or https link.");
       }
       fileUrl = designUrlValue;
-      category = inferCategoryFromName(designUrlValue);
-      if (categoryInput) {
+      category = normalizeCategoryValue(inferCategoryFromName(designUrlValue));
+      if (categoryInput && !categoryManualOverride) {
         categoryInput.value = category;
       }
     } else if (designFile) {
@@ -177,9 +184,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       const designUploadResult = await uploadBinaryFile(designFile, "design");
       fileUrl = String(designUploadResult.file_url || "").trim();
-      category = String(designUploadResult.category || inferCategoryFromName(designFile.name)).trim();
+      category = normalizeCategoryValue(designUploadResult.category || inferCategoryFromName(designFile.name));
       console.log("[AJartivo Upload] Uploaded design file URL", fileUrl);
-      if (categoryInput) {
+      if (categoryInput && !categoryManualOverride) {
         categoryInput.value = category;
       }
     }
@@ -283,7 +290,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const fileUrl = escapeHtml(design.file_url || "#");
       const premiumClass = design.is_premium ? "premium-chip" : "free-chip";
       const premiumLabel = design.is_premium ? "Premium" : "Free";
-      const category = escapeHtml(design.category || "FILE");
+      const category = escapeHtml(normalizeCategoryValue(design.category || "FILE"));
       const createdAt = escapeHtml(formatDate(design.created_at));
       const priceText = escapeHtml(formatPrice(design.price));
       const designPayload = escapeHtml(JSON.stringify({
@@ -292,7 +299,7 @@ document.addEventListener("DOMContentLoaded", function () {
         price: normalizePrice(design.price),
         image_url: design.image_url || "",
         file_url: design.file_url || design.download_link || "",
-        category: design.category || "FILE",
+        category: normalizeCategoryValue(design.category || "FILE"),
         description: design.description || "",
         tags: Array.isArray(design.tags) ? design.tags : [],
         is_premium: design.is_premium === true
@@ -398,7 +405,7 @@ document.addEventListener("DOMContentLoaded", function () {
       designFileMeta.textContent = "No file selected yet.";
       if (categoryInput) {
         categoryInput.value = activeEditDesign && activeEditDesign.category
-          ? String(activeEditDesign.category || "").trim()
+          ? normalizeCategoryValue(activeEditDesign.category)
           : "";
       }
       updatePreviewPanel();
@@ -420,8 +427,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (designUrlToggle) {
       designUrlToggle.setAttribute("aria-expanded", "false");
     }
-    if (categoryInput) {
-      categoryInput.value = inferCategoryFromName(file.name);
+    if (categoryInput && !categoryManualOverride) {
+      categoryInput.value = normalizeCategoryValue(inferCategoryFromName(file.name));
     }
     updatePreviewPanel();
     updateSummary();
@@ -440,9 +447,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateSummary() {
     const designFile = designFileInput.files && designFileInput.files[0];
-    const selectedCategory = designFile
-      ? inferCategoryFromName(designFile.name)
-      : String(categoryInput && categoryInput.value || "").trim();
+    const selectedCategory = normalizeCategoryValue(categoryInput && categoryInput.value)
+      || (designFile ? inferCategoryFromName(designFile.name) : "");
     const normalizedPrice = normalizePrice(priceInput.value);
 
     summaryCategory.textContent = selectedCategory || "Not selected";
@@ -584,6 +590,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (categoryInput) {
       categoryInput.value = "";
     }
+    categoryManualOverride = false;
     if (designUrlWrap) {
       designUrlWrap.classList.add("is-hidden");
       designUrlWrap.style.display = "none";
@@ -611,8 +618,9 @@ document.addEventListener("DOMContentLoaded", function () {
     titleInput.value = String(activeEditDesign.title || "").trim();
     priceInput.value = String(normalizePrice(activeEditDesign.price));
     if (categoryInput) {
-      categoryInput.value = String(activeEditDesign.category || "").trim();
+      categoryInput.value = normalizeCategoryValue(activeEditDesign.category);
     }
+    categoryManualOverride = true;
     descriptionInput.value = String(activeEditDesign.description || "").trim();
     tagsInput.value = Array.isArray(activeEditDesign.tags) ? activeEditDesign.tags.join(", ") : "";
     premiumInput.checked = activeEditDesign.is_premium === true;
@@ -735,6 +743,15 @@ function resolveBackendBaseUrl() {
 function inferCategoryFromName(value) {
   const extension = readExtension(value).replace(/^\./, "");
   return extension ? extension.toUpperCase() : "FILE";
+}
+
+function normalizeCategoryValue(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/^\./, "")
+    .toUpperCase();
+
+  return normalized || "";
 }
 
 function isPreviewableImage(value) {
@@ -973,4 +990,13 @@ function createMergedPreviewName(fileName) {
   const baseName = normalizedName.replace(/\.[^./\\]+$/, "") || "preview";
   return `${baseName}-merged-preview.png`;
 }
+
+
+
+
+
+
+
+
+
 

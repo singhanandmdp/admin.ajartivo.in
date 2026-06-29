@@ -135,7 +135,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    const result = await apiRequest("/save", {
+    const result = await apiRequest("/admin/designs", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
